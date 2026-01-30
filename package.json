@@ -1,0 +1,53 @@
+{
+  "name": "pcru-chatbot-backend",
+  "version": "1.0.0",
+  "description": "Backend server for PCRU chatbot application.",
+  "main": "server.js",
+  "engines": {
+    "node": ">=18.x"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "npx nodemon server.js",
+    "bg:start": "nohup node server.js > ./server.log 2>&1 & echo $! > ./server.pid",
+    "stop:bg": "[ -f ./server.pid ] && (kill $(cat ./server.pid) && rm ./server.pid) || pkill -f 'node server.js' || true",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "eval:chat": "node scripts/eval_chat.js"
+  },
+  "keywords": [
+    "chatbot",
+    "pcru",
+    "node",
+    "express"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "async-mutex": "^0.5.0",
+    "axios": "^1.13.2",
+    "bcrypt": "^6.0.0",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "csv-parser": "^3.2.0",
+    "csv-writer": "^1.6.0",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "google-auth-library": "^10.5.0",
+    "jsonwebtoken": "^9.0.2",
+    "mime-types": "^2.1.35",
+    "minimist": "^1.2.8",
+    "multer": "^2.0.2",
+    "mysql2": "^3.15.3",
+    "node-cron": "^4.2.1",
+    "nodemailer": "^7.0.10",
+    "pg": "^8.16.3",
+    "validator": "^13.15.23",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@ljharb/tsconfig": "^0.3.2",
+    "concurrently": "^9.2.1"
+  }
+}
