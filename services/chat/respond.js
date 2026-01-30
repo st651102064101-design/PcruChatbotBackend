@@ -195,7 +195,7 @@ async function tokenizeWithPython(text) {
   const payload = JSON.stringify({ text });
   const client = urlObj.protocol === 'https:' ? require('https') : require('http');
   return new Promise((resolve) => {
-    const req = client.request({ hostname: urlObj.hostname, port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80), path: urlObj.pathname, method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) }, timeout: 10000 }, (res) => {
+    const req = client.request({ hostname: urlObj.hostname, port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80), path: urlObj.pathname, method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) }, timeout: 2000 }, (res) => {
       let data = '';
       res.on('data', (chunk) => { data += chunk; });
       res.on('end', () => { try { const json = JSON.parse(data || '{}'); const tokens = Array.isArray(json.tokens) ? json.tokens : []; const cleaned = tokens.map((t) => String(t || '').trim()).filter(Boolean); resolve(cleaned); } catch (errParse) { resolve(null); } });

@@ -1,0 +1,10 @@
+DirectorySlash Off
+RewriteEngine On
+RewriteBase /~s651102064101/backend/
+
+# Don't rewrite existing physical files
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^ - [L]
+
+# Forward all other requests to PHP proxy
+RewriteRule ^(.*)$ index.php [L,QSA]
