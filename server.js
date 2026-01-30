@@ -136,7 +136,7 @@ const { markFeedbackHandledService, getHandledFeedbacksService, cleanupHandledFe
 const getAnswersKeywordsService = require('./services/reports/getAnswersKeywords');
 const getQuestionsAnswersService = require('./services/reports/getQuestionsAnswers');
 const uploadAdminUsersService = require('./services/adminUsers/uploadAdminUsers'); // admin users upload service
-const uploadOrganizationsService = require('./services/Organizations/uploadOrganizations'); // organizations upload service
+const uploadOrganizationsService = require('./services/organizations/uploadOrganizations'); // organizations upload service
 const downloadLastUploadService = require('./services/adminUsers/downloadLastUpload'); // admin users download
 const downloadOrganizationsLastUploadService = require('./services/organizations/downloadLastUpload'); // organizations download
 const uploadOfficersService = require('./services/Officers/uploadOfficers'); // officers upload service
