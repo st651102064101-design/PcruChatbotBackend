@@ -2,6 +2,29 @@
  * Public service: return categories without requiring authentication.
  * Returns all categories including subcategories for frontend to build tree.
  */
+// Helper to try the SQL query against both uppercase and lowercase table names.
+// This helps when the database is case-sensitive (e.g., on some hosting providers).
+async function queryWithTableNameFallback(pool, sql, params = []) {
+  try {
+    return await pool.query(sql, params);
+  } catch (err) {
+    // If the table doesn't exist, try again with lowercase table names.
+    // MySQL on Linux can be case-sensitive depending on lower_case_table_names.
+    if (err && (err.code === 'ER_NO_SUCH_TABLE' || /doesn't exist/i.test(err.message))) {
+      const altSql = sql
+        .replace(/\bCategories\b/g, 'categories')
+        .replace(/\bCategories_Contact\b/g, 'categories_contact');
+      try {
+        return await pool.query(altSql, params);
+      } catch (err2) {
+        // keep original error as the root cause
+        throw err;
+      }
+    }
+    throw err;
+  }
+}
+
 module.exports = (pool) => async (req, res) => {
   try {
     // Return ALL categories so frontend can build the tree structure
@@ -11,7 +34,8 @@ module.exports = (pool) => async (req, res) => {
 
     // When filtering for categories that have answers, include the QA count per category
     if (onlyWithAnswers) {
-      const [rowsWithCount] = await pool.query(
+      const [rowsWithCount] = await queryWithTableNameFallback(
+        pool,
         `SELECT
            c.CategoriesID COLLATE utf8mb4_unicode_ci   AS CategoriesID,
            c.CategoriesName COLLATE utf8mb4_unicode_ci AS CategoriesName,
@@ -53,7 +77,8 @@ module.exports = (pool) => async (req, res) => {
       return;
     }
 
-    const [rows] = await pool.query(
+    const [rows] = await queryWithTableNameFallback(
+      pool,
       `SELECT
          c.CategoriesID COLLATE utf8mb4_unicode_ci   AS CategoriesID,
          c.CategoriesName COLLATE utf8mb4_unicode_ci AS CategoriesName,

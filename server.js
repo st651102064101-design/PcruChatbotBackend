@@ -36,6 +36,12 @@ const fs = require('fs');
 // *** สำคัญ: โหลด Environment Variables ก่อนไฟล์อื่นทั้งหมด ***
 dotenv.config();
 
+// Detect Vercel production environment and set NODE_ENV accordingly (helps some middlewares/behaviors)
+if (process.env.VERCEL === '1') {
+  process.env.NODE_ENV = process.env.NODE_ENV || 'production';
+  console.log('📦 Running on Vercel (production mode)');
+}
+
 // Tokenizer service auto-start (local only)
 const TOKENIZER_HOST = process.env.TOKENIZER_HOST || 'project.3bbddns.com';
 const TOKENIZER_PORT = process.env.TOKENIZER_PORT || '36146';
