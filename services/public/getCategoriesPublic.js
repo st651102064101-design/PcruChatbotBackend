@@ -12,8 +12,9 @@ async function queryWithTableNameFallback(pool, sql, params = []) {
     // MySQL on Linux can be case-sensitive depending on lower_case_table_names.
     if (err && (err.code === 'ER_NO_SUCH_TABLE' || /doesn't exist/i.test(err.message))) {
       const altSql = sql
-        .replace(/\bCategories\b/g, 'categories')
-        .replace(/\bCategories_Contact\b/g, 'categories_contact');
+        .replace(/\bCategories_Contact\b/g, 'categories_contact')
+        .replace(/\bQuestionsAnswers\b/g, 'questionsanswers')
+        .replace(/\bCategories\b/g, 'categories');
       try {
         return await pool.query(altSql, params);
       } catch (err2) {
