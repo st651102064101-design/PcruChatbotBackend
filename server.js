@@ -333,14 +333,9 @@ const allowedOrigins = [
   process.env.FRONTEND_ORIGIN || ''
 ].filter(Boolean);
 app.use(cors({
-  origin: (origin, cb) => {
-    // Allow no-origin (mobile Safari, curl) and allowed dev origins
-    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
-    return cb(null, true); // fallback: allow all during local dev
-  },
+  origin: '*', // หรือระบุเป็น ['https://pcru-chatbot-frontend.vercel.app'] เพื่อจำกัดแหล่งที่มา
   methods: ['GET','POST','PUT','DELETE','OPTIONS'],
-  allowedHeaders: ['Content-Type','Authorization','X-Session-ID'],
-  credentials: false
+  allowedHeaders: ['Content-Type','Authorization','X-Session-ID']
 }));
 app.use(express.json());
 // add URL-encoded parser (for some form submissions)
