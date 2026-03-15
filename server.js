@@ -318,7 +318,7 @@ const pool = mysql.createPool({
     connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT) || 10,
     queueLimit: parseInt(process.env.DB_QUEUE_LIMIT) || 0,
     connectTimeout: 60000,
-    ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: true } : undefined
+    ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined
 });
 
 // ตรวจสอบการเชื่อมต่อฐานข้อมูลเมื่อ Server เริ่มต้น

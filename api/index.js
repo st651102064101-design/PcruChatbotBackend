@@ -27,7 +27,7 @@ const pool = mysql.createPool({
   connectionLimit: 5,
   queueLimit: 0,
   connectTimeout: 60000,
-  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: true } : undefined
+  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined
 });
 
 // Health check
