@@ -102,6 +102,6 @@ module.exports = (pool) => async (req, res) => {
     res.status(200).json({ success: true, categories: out, count: Array.isArray(out) ? out.length : 0 });
   } catch (error) {
     console.error('❌ Error fetching public categories:', error);
-    res.status(500).json({ success: false, message: 'Internal Server Error' });
+    res.status(500).json({ success: false, message: 'Internal Server Error', error: error && error.message, code: error && error.code });
   }
 };

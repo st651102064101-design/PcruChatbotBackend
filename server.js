@@ -313,9 +313,11 @@ const pool = mysql.createPool({
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
+    port: parseInt(process.env.DB_PORT) || 3306,
     waitForConnections: true,
     connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT) || 10,
-    queueLimit: parseInt(process.env.DB_QUEUE_LIMIT) || 0
+    queueLimit: parseInt(process.env.DB_QUEUE_LIMIT) || 0,
+    connectTimeout: 60000
 });
 
 // ตรวจสอบการเชื่อมต่อฐานข้อมูลเมื่อ Server เริ่มต้น
@@ -390,8 +392,34 @@ if (fs.existsSync(FRONTEND_DIR)) {
   console.log(`ℹ️ Frontend static directory not found at ${FRONTEND_DIR}; skipping SPA fallback.`);
 }
 // 5. สร้าง Route 
-app.get('/', (req, res) => {
-  res.send('PCRU Chatbot Backend running');
+app.get('/', async (req, res) => {
+  let dbStatus = 'unknown';
+  let dbError = null;
+  let tableList = [];
+  try {
+    const conn = await pool.getConnection();
+    await conn.query('SELECT 1');
+    conn.release();
+    dbStatus = 'connected';
+    const [tables] = await pool.query('SHOW TABLES');
+    tableList = tables.map(t => Object.values(t)[0]);
+  } catch (err) {
+    dbStatus = 'error';
+    dbError = { message: err.message, code: err.code };
+  }
+  res.json({
+    message: 'PCRU Chatbot Backend running',
+    db: dbStatus,
+    dbError: dbError,
+    tables: tableList,
+    env: {
+      DB_HOST: process.env.DB_HOST ? 'set' : 'not set',
+      DB_USER: process.env.DB_USER ? 'set' : 'not set',
+      DB_PASSWORD: process.env.DB_PASSWORD ? 'set' : 'not set',
+      DB_NAME: process.env.DB_NAME ? 'set' : 'not set',
+      DB_PORT: process.env.DB_PORT || '3306 (default)'
+    }
+  });
 });
 
 // Thai patterns routes removed
@@ -401,6 +429,18 @@ const googleAuthRoutes = require('./routes/googleAuth');
 app.use('/auth', googleAuthRoutes);
 
 // --- Public Routes (No Authentication Required) ---
+// Database connectivity diagnostic (remove after debugging)
+app.get('/db-check', async (req, res) => {
+  try {
+    const conn = await pool.getConnection();
+    const [rows] = await conn.query('SELECT 1 AS ok');
+    conn.release();
+    const [tables] = await pool.query("SHOW TABLES");
+    res.json({ success: true, db: 'connected', tables: tables.map(t => Object.values(t)[0]) });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message, code: err.code, host: process.env.DB_HOST ? '(set)' : '(not set)' });
+  }
+});
 app.post('/login', loginService(pool, transporter));
 app.post('/forgotpassword', forgotPasswordService(pool, transporter));
 app.post('/setnewpassword', setNewPasswordService(pool));
