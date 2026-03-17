@@ -326,6 +326,26 @@ pool.getConnection()
     .then(async connection => {
         console.log('✅ MySQL Database Connected Successfully!');
         connection.release();
+
+        // ตรวจสอบและแก้ไข AUTO_INCREMENT ของตาราง ChatLogNoAnswers
+        try {
+            const [rows] = await pool.query(`
+                SELECT EXTRA FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = 'ChatLogNoAnswers'
+                  AND COLUMN_NAME = 'ChatLogID'
+            `);
+            if (rows.length > 0 && !rows[0].EXTRA.includes('auto_increment')) {
+                console.log('⚠️  ChatLogID ไม่มี AUTO_INCREMENT กำลังแก้ไข...');
+                await pool.query(`
+                    ALTER TABLE ChatLogNoAnswers
+                    MODIFY ChatLogID int(11) NOT NULL AUTO_INCREMENT
+                `);
+                console.log('✅ แก้ไข AUTO_INCREMENT ของ ChatLogID สำเร็จ');
+            }
+        } catch (err) {
+            console.error('❌ ไม่สามารถแก้ไข AUTO_INCREMENT ของ ChatLogNoAnswers:', err.message);
+        }
     })
     .catch(err => {
         console.error('❌ Failed to connect to MySQL:', err.message);
