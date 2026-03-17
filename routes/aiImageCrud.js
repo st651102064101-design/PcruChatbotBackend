@@ -76,7 +76,9 @@ router.get('/', (req, res) => {
     const metadata = loadMetadata();
     
     // Build response with full URLs
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    // Use X-Forwarded-Proto header for reverse proxies like Vercel
+    const protocol = req.get('x-forwarded-proto') || req.protocol;
+    const baseUrl = `${protocol}://${req.get('host')}`;
     
     let active = null;
     if (metadata.active) {
@@ -133,11 +135,13 @@ router.post('/upload', upload.single('image'), (req, res) => {
     if (!metadata.active && metadata.images.length === 1) {
       metadata.active = newImage.id;
     }
-    
+
     saveMetadata(metadata);
-    
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    
+
+    // Use X-Forwarded-Proto header for reverse proxies like Vercel
+    const protocol = req.get('x-forwarded-proto') || req.protocol;
+    const baseUrl = `${protocol}://${req.get('host')}`;
+
     res.json({
       message: 'Image uploaded successfully',
       image: {
@@ -175,9 +179,11 @@ router.post('/set-active', (req, res) => {
     // Set as active
     metadata.active = imageId;
     saveMetadata(metadata);
-    
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    
+
+    // Use X-Forwarded-Proto header for reverse proxies like Vercel
+    const protocol = req.get('x-forwarded-proto') || req.protocol;
+    const baseUrl = `${protocol}://${req.get('host')}`;
+
     res.json({
       message: 'Active image updated successfully',
       active: {
@@ -257,9 +263,11 @@ router.get('/active', (req, res) => {
     if (!activeImg) {
       return res.status(404).json({ message: 'Active AI image not found' });
     }
-    
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    
+
+    // Use X-Forwarded-Proto header for reverse proxies like Vercel
+    const protocol = req.get('x-forwarded-proto') || req.protocol;
+    const baseUrl = `${protocol}://${req.get('host')}`;
+
     res.json({
       url: `${baseUrl}/uploads/ai-images/${activeImg.filename}`,
       name: activeImg.name,
