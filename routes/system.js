@@ -67,7 +67,7 @@ module.exports = function(pool) {
         sessionTimeout: process.env.SESSION_TIMEOUT || '24h',
         idleTimeout: process.env.IDLE_TIMEOUT || '15m'
       };
-      
+
       return res.json({
         ok: true,
         config: config
@@ -77,6 +77,58 @@ module.exports = function(pool) {
       return res.status(500).json({
         ok: false,
         message: 'Failed to fetch timeout configuration',
+        error: error.message
+      });
+    }
+  });
+
+  /**
+   * GET /system/check-table/:tableName
+   * ตรวจสอบว่าตารางมีอยู่ในฐานข้อมูลหรือไม่
+   * (public endpoint - for debugging)
+   */
+  router.get('/check-table/:tableName', async (req, res) => {
+    try {
+      const { tableName } = req.params;
+
+      // Check if table exists
+      const [tables] = await pool.query(
+        `SELECT TABLE_NAME
+         FROM information_schema.TABLES
+         WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = ?`,
+        [tableName]
+      );
+
+      if (tables.length === 0) {
+        return res.json({
+          ok: true,
+          exists: false,
+          tableName: tableName
+        });
+      }
+
+      // Get table structure
+      const [columns] = await pool.query(
+        `SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_KEY, EXTRA
+         FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME = ?
+         ORDER BY ORDINAL_POSITION`,
+        [tableName]
+      );
+
+      return res.json({
+        ok: true,
+        exists: true,
+        tableName: tableName,
+        columns: columns
+      });
+    } catch (error) {
+      console.error('Check table error:', error);
+      return res.status(500).json({
+        ok: false,
+        message: 'Failed to check table',
         error: error.message
       });
     }

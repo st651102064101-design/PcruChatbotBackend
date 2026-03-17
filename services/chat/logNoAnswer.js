@@ -3,6 +3,12 @@
 module.exports = (pool) => async (req, res) => {
   const notifyChatLogsUpdate = req.app.locals.notifyChatLogsUpdate;
   const body = req.body || {};
+
+  console.log('📝 logNoAnswer received:', {
+    body: body,
+    contentType: req.get('content-type')
+  });
+
   const userQueryRaw = body.userQuery || body.UserQuery || '';
   const statusRaw = typeof body.status !== 'undefined' ? body.status : body.Status;
   const timestampInput = body.Timestamp || body.timestamp; // accept PascalCase
@@ -26,6 +32,12 @@ module.exports = (pool) => async (req, res) => {
   }
 
   try {
+    console.log('💾 Inserting to ChatLogNoAnswers:', {
+      timestamp: parsedTimestamp,
+      query: trimmedQuery,
+      status: statusValue
+    });
+
     const [result] = await pool.query(
       `INSERT INTO ChatLogNoAnswers (Timestamp, UserQuery, Status)
        VALUES (?, ?, ?)`,
@@ -48,7 +60,11 @@ module.exports = (pool) => async (req, res) => {
       chatLogId: result.insertId
     });
   } catch (error) {
-    console.error('chat/logs/no-answer error:', error && error.message);
-    res.status(500).json({ success: false, message: 'Internal Server Error' });
+    console.error('chat/logs/no-answer error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal Server Error',
+      detail: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
