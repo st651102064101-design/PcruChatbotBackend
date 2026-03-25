@@ -60,11 +60,44 @@ module.exports = (pool) => async (req, res) => {
       chatLogId: result.insertId
     });
   } catch (error) {
-    console.error('chat/logs/no-answer error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Internal Server Error',
-      detail: process.env.NODE_ENV === 'development' ? error.message : undefined
+    console.error('chat/logs/no-answer error:', error && error.message, error && error.sql);
+
+    // Handle the case where ChatLogID is not auto-increment and insert fails due missing default
+    if (error && /ChatLogID/.test(error.message) && /default/i.test(error.message)) {
+      try {
+        const [[{ maxId }]] = await pool.query('SELECT MAX(ChatLogID) AS maxId FROM ChatLogNoAnswers');
+        const nextId = (Number(maxId) || 0) + 1;
+        const [fallbackResult] = await pool.query(
+          `INSERT INTO ChatLogNoAnswers (ChatLogID, Timestamp, UserQuery, Status)
+           VALUES (?, ?, ?, ?)`,
+          [nextId, parsedTimestamp, trimmedQuery, statusValue]
+        );
+
+        if (notifyChatLogsUpdate) {
+          notifyChatLogsUpdate({
+            action: 'created',
+            type: 'no-answer',
+            chatLogId: nextId,
+            userQuery: trimmedQuery,
+            status: statusValue,
+            timestamp: parsedTimestamp.toISOString()
+          });
+        }
+
+        return res.status(201).json({
+          success: true,
+          chatLogId: nextId
+        });
+      } catch (fallbackError) {
+        console.error('chat/logs/no-answer fallback error:', fallbackError && fallbackError.message);
+      }
+    }
+
+    // Keep UX smooth: don't propagate a hard error into the user-facing chatbot
+    return res.status(200).json({
+      success: true,
+      logged: false,
+      message: 'Log skipped: ' + (error && error.message)
     });
   }
 };
