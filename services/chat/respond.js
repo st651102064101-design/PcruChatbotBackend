@@ -17,6 +17,20 @@ let SYNONYMS_MAPPING = {};
 const BOT_PRONOUN = process.env.BOT_PRONOUN || 'หนู';
 const NEGATION_BLOCKS = new Map();
 
+// 🚀 Cache with TTL (Time-To-Live) to avoid repeated DB queries
+const CACHE_TTL = 1000 * 60 * 5; // 5 minutes cache
+const caches = {
+  semanticData: { data: null, timestamp: 0 },
+  synonymsMapping: { data: null, timestamp: 0 },
+  negativeKeywords: { data: null, timestamp: 0 }
+};
+
+function isCacheValid(cacheName) {
+  const cache = caches[cacheName];
+  if (!cache || !cache.data) return false;
+  return (Date.now() - cache.timestamp) < CACHE_TTL;
+}
+
 // --- Configuration ---
 const KW_SIM_THRESHOLD = parseFloat(process.env.KW_SIM_THRESHOLD) || 0.5;
 const TOKENIZER_HOST = process.env.TOKENIZER_HOST || 'project.3bbddns.com';
@@ -170,9 +184,27 @@ function resolveSynonyms(tokens) {
 
 async function loadSemanticData(pool) {
   try {
+    // 🚀 Check cache first (5 minute TTL)
+    if (isCacheValid('semanticData')) {
+      SEMANTIC_SIM_MAP = caches.semanticData.data;
+      getSemanticSimilarity = (w1, w2) => {
+        try {
+          if (!w1 || !w2) return 0;
+          if (SEMANTIC_SIM_MAP[w1] && typeof SEMANTIC_SIM_MAP[w1][w2] !== 'undefined') return SEMANTIC_SIM_MAP[w1][w2];
+          return 0;
+        } catch (e) { return 0; }
+      };
+      return SEMANTIC_SIM_MAP;
+    }
+
     const loader = require('../semanticData/loadSemanticData');
     const map = await loader.getSemanticSimilarity(pool);
     SEMANTIC_SIM_MAP = map || {};
+    
+    // 💾 Store in cache with timestamp
+    caches.semanticData.data = SEMANTIC_SIM_MAP;
+    caches.semanticData.timestamp = Date.now();
+    
     getSemanticSimilarity = (w1, w2) => {
       try {
         if (!w1 || !w2) return 0;
@@ -190,6 +222,12 @@ async function loadSemanticData(pool) {
 
 async function loadSynonymsMapping(pool) {
   try {
+    // 🚀 Check cache first (5 minute TTL)
+    if (isCacheValid('synonymsMapping')) {
+      SYNONYMS_MAPPING = caches.synonymsMapping.data;
+      return SYNONYMS_MAPPING;
+    }
+
     const connection = await pool.getConnection();
     const [rows] = await connection.query(`SELECT s.InputWord AS input, k.KeywordText AS target FROM KeywordSynonyms s JOIN Keywords k ON s.TargetKeywordID = k.KeywordID WHERE s.IsActive = 1`);
     connection.release();
@@ -197,6 +235,11 @@ async function loadSynonymsMapping(pool) {
     for (const r of rows || []) {
       if (r && r.input && r.target) SYNONYMS_MAPPING[String(r.input).toLowerCase().trim()] = String(r.target).toLowerCase().trim();
     }
+    
+    // 💾 Store in cache with timestamp
+    caches.synonymsMapping.data = SYNONYMS_MAPPING;
+    caches.synonymsMapping.timestamp = Date.now();
+    
     return SYNONYMS_MAPPING;
   } catch (e) {
     SYNONYMS_MAPPING = {};
@@ -258,12 +301,14 @@ async function normalize(text, pool) {
       return result;
     };
 
-    const pythonTokens = await tokenizeWithPython(separated);
-    if (pythonTokens && pythonTokens.length > 0) {
-      const refined = refineTokens(pythonTokens);
-      return resolveSynonyms(refined);
-    }
+    // 🚀 DISABLED: Python tokenizer to improve performance (was causing 2-3 second delays)
+    // const pythonTokens = await tokenizeWithPython(separated);
+    // if (pythonTokens && pythonTokens.length > 0) {
+    //   const refined = refineTokens(pythonTokens);
+    //   return resolveSynonyms(refined);
+    // }
 
+    // Use simple tokenization without Python service
     let segmented = separated;
     for (const sw of shortStopwords) segmented = segmented.split(sw).join(' ');
     const rawTokens = segmented.split(/\s+/).filter(Boolean);
@@ -285,6 +330,7 @@ async function normalize(text, pool) {
     return [String(text || '').trim()];
   }
 }
+
 
 function jaccardSimilarity(aTokens, bTokens) {
   const a = new Set(aTokens);
@@ -377,10 +423,15 @@ module.exports = (pool) => async (req, res) => {
     if (!req.body?.message && !req.body?.text && !req.body?.id) return res.status(200).json({ success: true, reset: true });
   }
 
-  // Load basic data
+  // Load basic data with caching (TTL: 5 minutes)
   try { await loadSemanticData(pool); } catch (e) {}
   try { await loadSynonymsMapping(pool); } catch (e) {}
-  try { await NEG_KW_MODULE.loadNegativeKeywords(pool); } catch (e) {}
+  try { 
+    if (!isCacheValid('negativeKeywords')) {
+      await NEG_KW_MODULE.loadNegativeKeywords(pool);
+      caches.negativeKeywords.timestamp = Date.now();
+    }
+  } catch (e) {}
   
   const message = req.body?.message || req.body?.text || '';
   const questionId = req.body?.id;
