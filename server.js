@@ -321,6 +321,14 @@ const pool = mysql.createPool({
     ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined
 });
 
+// 🔍 Debug: Log database configuration (without sensitive password)
+console.log('📊 Database Configuration:');
+console.log(`  HOST: ${process.env.DB_HOST || 'NOT SET'}`);
+console.log(`  USER: ${process.env.DB_USER || 'NOT SET'}`);
+console.log(`  DATABASE: ${process.env.DB_NAME || 'NOT SET'}`);
+console.log(`  PORT: ${process.env.DB_PORT || 3306}`);
+console.log(`  PASSWORD: ${process.env.DB_PASSWORD ? '***SET***' : 'NOT SET'}`);
+
 // ตรวจสอบการเชื่อมต่อฐานข้อมูลเมื่อ Server เริ่มต้น
 pool.getConnection()
     .then(async connection => {
@@ -348,7 +356,15 @@ pool.getConnection()
         }
     })
     .catch(err => {
-        console.error('❌ Failed to connect to MySQL:', err.message);
+        console.error('❌ CRITICAL: Failed to connect to MySQL Database');
+        console.error('   Error:', err.message);
+        console.error('   Error Code:', err.code);
+        console.error('   ⚠️  PLEASE VERIFY:');
+        console.error('      1. DB_HOST is set correctly');
+        console.error('      2. DB_USER and DB_PASSWORD are correct');
+        console.error('      3. DB_NAME database exists');
+        console.error('      4. Database is accessible from Vercel network');
+        console.error('      5. All environment variables are set in Vercel Settings');
     });
 
 // Store pool in app.locals for use in routes

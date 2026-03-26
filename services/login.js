@@ -131,8 +131,9 @@ const loginService = (pool, transporter) => async (req, res) => {
 
     } catch (error) {
         // Handle errors from the database query
-        console.error('Database Query Error:', error);
-
+        console.error('💥 Login Error - Database Query Failed:', error.message);
+        console.error('   Error Code:', error.code);
+        
         // Fallback: if stored procedures are failing due to mysql system tables mismatch,
         // try a direct query against AdminUsers and Officers tables as a temporary workaround.
         if (error && (error.code === 'ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE' || error.code === 'ER_SP_DOES_NOT_EXIST')) {
