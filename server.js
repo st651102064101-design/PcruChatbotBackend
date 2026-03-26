@@ -471,6 +471,17 @@ app.get('/categories', getCategoriesPublicService(pool));
 app.get('/getcategories', authenticateToken, getCategoriesService(pool));
 // Chat respond endpoint (Public)
 app.post('/chat/respond', chatRespondService(pool));
+// Handle OPTIONS prefligth request for /chat/respond
+app.options('/chat/respond', cors());
+// Handle GET request to /chat/respond with helpful error message
+app.get('/chat/respond', (req, res) => {
+  res.status(405).json({ 
+    error: 'Method Not Allowed',
+    message: 'Please use POST method to send messages',
+    endpoint: '/chat/respond',
+    method: 'POST'
+  });
+});
 // Chat contacts endpoint (Public) - returns relevant officer contacts
 app.get('/chat/contacts', async (req, res) => {
   if (!app.locals.pool) {
