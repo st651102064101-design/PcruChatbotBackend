@@ -29,20 +29,36 @@ const TOKENIZER_URL = process.env.TOKENIZER_URL || `http://${TOKENIZER_HOST}:${T
 // --------------------------------------------------------------------------------
 
 async function fetchQAWithKeywords(connection) {
+  // 🚀 OPTIMIZED: Single query with LEFT JOIN instead of N+1 Query Loop
+  // This replaces 501 queries (1 + 500) with just 1 query!
   const [rows] = await connection.query(`
-    SELECT qa.QuestionsAnswersID, qa.QuestionTitle, qa.ReviewDate, qa.QuestionText, qa.OfficerID,
-           c.CategoriesName AS CategoriesID, c.CategoriesPDF
+    SELECT 
+      qa.QuestionsAnswersID, 
+      qa.QuestionTitle, 
+      qa.ReviewDate, 
+      qa.QuestionText, 
+      qa.OfficerID,
+      c.CategoriesName AS CategoriesID, 
+      c.CategoriesPDF,
+      GROUP_CONCAT(k.KeywordText SEPARATOR '||') AS keywords_concat
     FROM QuestionsAnswers qa
     LEFT JOIN Categories c ON qa.CategoriesID = c.CategoriesID
+    LEFT JOIN AnswersKeywords ak ON qa.QuestionsAnswersID = ak.QuestionsAnswersID
+    LEFT JOIN Keywords k ON ak.KeywordID = k.KeywordID
+    GROUP BY qa.QuestionsAnswersID, qa.QuestionTitle, qa.ReviewDate, qa.QuestionText, 
+             qa.OfficerID, c.CategoriesName, c.CategoriesPDF
   `);
+  
   const result = [];
   for (const row of rows) {
-    const [keywords] = await connection.query(`
-      SELECT k.KeywordText
-      FROM Keywords k
-      INNER JOIN AnswersKeywords ak ON k.KeywordID = ak.KeywordID
-      WHERE ak.QuestionsAnswersID = ?`, [row.QuestionsAnswersID]);
-    result.push({ ...row, keywords: (keywords || []).map(k => k.KeywordText) });
+    // Parse concatenated keywords
+    const keywords = row.keywords_concat 
+      ? row.keywords_concat.split('||').filter(k => k && k.trim() !== '')
+      : [];
+    result.push({ 
+      ...row, 
+      keywords: keywords
+    });
   }
   return result;
 }
