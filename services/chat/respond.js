@@ -428,10 +428,11 @@ module.exports = (pool) => async (req, res) => {
   try { await loadSynonymsMapping(pool); } catch (e) {}
   try { 
     if (!isCacheValid('negativeKeywords')) {
-      await NEG_KW_MODULE.loadNegativeKeywords(pool);
+      const negResult = await NEG_KW_MODULE.loadNegativeKeywords(pool);
+      caches.negativeKeywords.data = negResult || true; // Store result or flag as loaded
       caches.negativeKeywords.timestamp = Date.now();
     }
-  } catch (e) {}
+  } catch (e) { console.warn('Failed to load negative keywords:', e.message); }
   
   const message = req.body?.message || req.body?.text || '';
   const questionId = req.body?.id;
@@ -454,6 +455,7 @@ module.exports = (pool) => async (req, res) => {
   let connection;
   try {
     connection = await pool.getConnection();
+    if (!connection) throw new Error('Failed to get connection from pool (returned null)');
 
     // 2. Fetch QA List FIRST
     const qaList = await fetchQAWithKeywords(connection);
