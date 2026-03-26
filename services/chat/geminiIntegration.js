@@ -34,6 +34,18 @@ async function getAIResponse(question, context = {}) {
       };
     }
 
+    // Check if it's a quota error
+    if (result.quotaError?.isQuotaExceeded) {
+      console.warn('⚠️  Google Gemini Quota Exceeded - Using Fallback Response');
+      return {
+        success: false,
+        error: 'Gemini API quota exceeded',
+        isQuotaExceeded: true,
+        retryAfter: result.quotaError?.retryAfter,
+        fallbackMessage: 'ขออภัยค่ะ ระบบ AI ของเรากำลังมีภาระงานเยอะ กรุณาลองใหม่ในอีกสักครู่',
+      };
+    }
+
     return {
       success: false,
       error: result.error,

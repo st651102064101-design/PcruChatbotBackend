@@ -869,6 +869,19 @@ module.exports = (pool) => async (req, res) => {
                     }],
                 });
             }
+            
+            // Check for quota exceeded error
+            if (aiResponse.isQuotaExceeded) {
+                console.warn('⚠️  [QUOTA EXCEEDED] Google Gemini API quota เต็มแล้ว');
+                return res.status(200).json({
+                    success: true,
+                    found: true,
+                    lowConfidence: true,
+                    message: aiResponse.fallbackMessage || 'ขออภัยค่ะ ระบบ AI ของเรากำลังมีภาระงานเยอะ กรุณาลองใหม่ในอีกสักครู่',
+                    contacts: [],
+                    retryAfter: aiResponse.retryAfter,
+                });
+            }
         } else {
             // 🔍 โหมด Keyword: ห้ามเรียก Gemini - แสดง contact เท่านั้น
             console.log('📢 [KEYWORD MODE] ไม่พบคำตอบ - ส่ง contact กลับ (ไม่เรียก Gemini)');

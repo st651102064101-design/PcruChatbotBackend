@@ -102,12 +102,42 @@ async function chat(message, options = {}) {
     };
   } catch (error) {
     console.error('❌ Gemini AI Error:', error.message);
+    
+    // Detect quota errors
+    const isQuotaError = error.message?.includes('429') || 
+                        error.message?.includes('quota') || 
+                        error.message?.includes('Too Many Requests');
+    
+    const quotaErrorDetails = {
+      isQuotaExceeded: isQuotaError,
+      retryAfter: extractRetryAfter(error.message),
+      message: error.message
+    };
+    
     return {
       success: false,
       error: error.message,
       code: error.code || 'UNKNOWN_ERROR',
+      quotaError: quotaErrorDetails,
     };
   }
+}
+
+// Helper function to extract retry-after time from error message
+function extractRetryAfter(errorMessage) {
+  if (!errorMessage) return null;
+  const match = errorMessage.match(/retry in (\d+\.?\d*)(s|h|m)?/i);
+  if (match) {
+    const value = parseFloat(match[1]);
+    const unit = (match[2] || 's').toLowerCase();
+    
+    let seconds = value;
+    if (unit === 'h') seconds = value * 3600;
+    else if (unit === 'm') seconds = value * 60;
+    
+    return Math.ceil(seconds);
+  }
+  return null;
 }
 
 /**
@@ -145,9 +175,22 @@ async function sendMessage(chatSession, message) {
     };
   } catch (error) {
     console.error('❌ Gemini Chat Error:', error.message);
+    
+    // Detect quota errors
+    const isQuotaError = error.message?.includes('429') || 
+                        error.message?.includes('quota') || 
+                        error.message?.includes('Too Many Requests');
+    
+    const quotaErrorDetails = {
+      isQuotaExceeded: isQuotaError,
+      retryAfter: extractRetryAfter(error.message),
+      message: error.message
+    };
+    
     return {
       success: false,
       error: error.message,
+      quotaError: quotaErrorDetails,
       code: error.code || 'UNKNOWN_ERROR',
     };
   }
