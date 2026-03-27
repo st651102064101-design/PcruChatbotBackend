@@ -92,7 +92,7 @@ router.get('/google/callback', async (req, res) => {
         
         // ผูกบัญชี Google กับผู้ใช้ที่ล็อกอินอยู่
         const userId = decoded.userId || decoded.id;
-        const userType = decoded.usertype;
+        const userType = decoded.role || decoded.usertype; // JWT stores as 'role', fallback to 'usertype'
         
         if (userType === 'Admin' || userType === 'Super Admin') {
           await googleOAuthService.linkGoogleToAdmin(pool, googleUser, userId);
