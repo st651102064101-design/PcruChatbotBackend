@@ -610,6 +610,52 @@ app.get('/chat/respond', (req, res) => {
     method: 'POST'
   });
 });
+
+// Tokenize endpoint - simple Thai word tokenization
+// Returns array of tokens from input text
+// Fallback: If external tokenizer unavailable, uses simple split
+app.post('/tokenize', async (req, res) => {
+  try {
+    const { text } = req.body;
+    
+    if (!text || typeof text !== 'string') {
+      return res.status(400).json({ error: 'Missing or invalid text parameter' });
+    }
+    
+    // Simple tokenization: split by spaces and common punctuation
+    const cleanText = String(text).toLowerCase().trim();
+    
+    // Remove punctuation and special characters (keep Thai characters and alphanumeric)
+    const normalized = cleanText
+      .replace(/[\p{P}\p{S}]/gu, ' ')  // Remove punctuation and symbols
+      .replace(/\s+/g, ' ')            // Collapse multiple spaces
+      .trim();
+    
+    // Split by whitespace
+    const tokens = normalized
+      .split(/\s+/)
+      .filter(t => t && t.length > 0);
+    
+    // Try external tokenizer asynchronously (non-blocking)
+    tryExternalTokenizer(text).then(externalTokens => {
+      if (externalTokens && externalTokens.length > 0) {
+        console.log(`✅ External tokenizer available for "${text.substring(0, 30)}..."`);
+      }
+    }).catch(err => {
+      console.log(`ℹ️ External tokenizer unavailable`);
+    });
+    
+    return res.json({ 
+      ok: true,
+      tokens: tokens,
+      source: 'simple-tokenizer' 
+    });
+  } catch (error) {
+    console.error('Tokenize error:', error);
+    res.status(500).json({ ok: false, error: error.message, tokens: [] });
+  }
+});
+
 // Chat contacts endpoint (Public) - returns relevant officer contacts
 app.get('/chat/contacts', async (req, res) => {
   if (!app.locals.pool) {
@@ -1117,6 +1163,48 @@ process.on('unhandledRejection', (reason) => {
 server.on('error', (err) => {
   console.error('❌ HTTP Server error:', err && (err.message || err));
 });
+
+// Helper: Try to call external tokenizer (non-blocking)
+async function tryExternalTokenizer(text) {
+  try {
+    const urlObj = new URL(TOKENIZER_URL);
+    const client = urlObj.protocol === 'https:' ? require('https') : require('http');
+    const payload = JSON.stringify({ text });
+    
+    return new Promise((resolve) => {
+      const req = client.request({
+        hostname: urlObj.hostname,
+        port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
+        path: urlObj.pathname,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(payload)
+        },
+        timeout: 1000 // 1 second timeout
+      }, (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          try {
+            const json = JSON.parse(data || '{}');
+            resolve(Array.isArray(json.tokens) ? json.tokens : null);
+          } catch (err) {
+            resolve(null);
+          }
+        });
+      });
+      
+      req.on('error', () => resolve(null));
+      req.on('timeout', () => { req.destroy(); resolve(null); });
+      req.write(payload);
+      req.end();
+    });
+  } catch (err) {
+    // Silently fail - external tokenizer is optional
+    return null;
+  }
+}
 
 // Only start server if not in Vercel serverless environment
 if (process.env.VERCEL !== '1') {

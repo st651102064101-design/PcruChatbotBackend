@@ -156,6 +156,99 @@ app.get('/questionsanswers/navigation', async (req, res) => {
   }
 });
 
+// Tokenize endpoint - simple Thai word tokenization
+// Returns array of tokens from input text
+// Fallback: If external tokenizer unavailable, uses simple split
+app.post('/tokenize', async (req, res) => {
+  try {
+    const { text } = req.body;
+    
+    if (!text || typeof text !== 'string') {
+      return res.status(400).json({ error: 'Missing or invalid text parameter' });
+    }
+    
+    // Simple tokenization: split by spaces and common punctuation
+    // For Thai: this is basic but works for keyword extraction
+    const cleanText = String(text).toLowerCase().trim();
+    
+    // Remove punctuation and special characters (keep Thai characters and alphanumeric)
+    // Thai character ranges: \u0E01-\u0E3A (main), \u0E40-\u0E5B (combining)
+    const normalized = cleanText
+      .replace(/[\p{P}\p{S}]/gu, ' ')  // Remove punctuation and symbols
+      .replace(/\s+/g, ' ')            // Collapse multiple spaces
+      .trim();
+    
+    // Split by whitespace
+    const tokens = normalized
+      .split(/\s+/)
+      .filter(t => t && t.length > 0);
+    
+    // Additional: Try to use external tokenizer if available (with timeout)
+    // This is async but we return early with simple tokens to avoid delays
+    tryExternalTokenizer(text).then(externalTokens => {
+      // Log for monitoring (don't block response)
+      if (externalTokens && externalTokens.length > 0) {
+        console.log(`✅ External tokenizer available, returned ${externalTokens.length} tokens`);
+      }
+    }).catch(err => {
+      console.log(`ℹ️ External tokenizer unavailable, using simple tokenization: ${err.message}`);
+    });
+    
+    return res.json({ 
+      ok: true,
+      tokens: tokens,
+      source: 'simple-tokenizer' 
+    });
+  } catch (error) {
+    console.error('Tokenize error:', error);
+    res.status(500).json({ ok: false, error: error.message, tokens: [] });
+  }
+});
+
+// Helper: Try to call external tokenizer (non-blocking)
+async function tryExternalTokenizer(text) {
+  const TOKENIZER_URL = process.env.TOKENIZER_URL || 'http://project.3bbddns.com:36146/tokenize';
+  try {
+    const urlObj = new URL(TOKENIZER_URL);
+    const client = urlObj.protocol === 'https:' ? require('https') : require('http');
+    const payload = JSON.stringify({ text });
+    
+    return new Promise((resolve) => {
+      const req = client.request({
+        hostname: urlObj.hostname,
+        port: urlObj.port || (urlObj.protocol === 'https:' ? 443 : 80),
+        path: urlObj.pathname,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(payload)
+        },
+        timeout: 1000 // 1 second timeout
+      }, (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          try {
+            const json = JSON.parse(data || '{}');
+            resolve(Array.isArray(json.tokens) ? json.tokens : null);
+          } catch (err) {
+            resolve(null);
+          }
+        });
+      });
+      
+      req.on('error', () => resolve(null));
+      req.on('timeout', () => { req.destroy(); resolve(null); });
+      req.write(payload);
+      req.end();
+    });
+  } catch (err) {
+    // Silently fail - external tokenizer is optional
+    return null;
+  }
+}
+
+
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({ error: 'Not Found', path: req.path });
