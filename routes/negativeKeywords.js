@@ -22,18 +22,19 @@ router.use((req, res, next) => {
  * ดึงข้อมูลพร้อม Pagination, Search, Filter และ Stats
  */
 router.get('/', async (req, res) => {
-  let conn;
   try {
     console.log('🔍 GET /negativekeywords called; auth=', !!req.user, 'pool=', !!req.pool);
+
+    if (!req.pool) {
+      console.error('❌ req.pool not available');
+      return res.status(500).json({ ok: false, message: 'Database connection not available' });
+    }
 
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 50;
     const offset = (page - 1) * limit;
     const search = req.query.search ? req.query.search.trim() : '';
     const activeFilter = req.query.active; // 1, 0, or undefined
-
-    conn = await req.pool.getConnection();
-    if (!conn) throw new Error('Failed to get DB connection in negativeKeywords route');
 
     // 1. สร้างเงื่อนไข WHERE
     let whereClauses = [];
@@ -51,22 +52,24 @@ router.get('/', async (req, res) => {
 
     const whereSql = whereClauses.length > 0 ? 'WHERE ' + whereClauses.join(' AND ') : '';
 
-    // 2. Query ข้อมูลหลัก
+    // 2. Query ข้อมูลหลัก (without SQL_CALC_FOUND_ROWS for better compatibility)
     const sql = `
-      SELECT SQL_CALC_FOUND_ROWS * FROM NegativeKeywords 
+      SELECT * FROM NegativeKeywords 
       ${whereSql} 
       ORDER BY NegativeKeywordID DESC 
       LIMIT ? OFFSET ?
     `;
     
-    const [rows] = await conn.query(sql, [...params, limit, offset]);
+    const [rows] = await req.pool.query(sql, [...params, limit, offset]);
 
-    // 3. หาจำนวนรายการทั้งหมด (สำหรับ Pagination) - more robust handling
-    const [foundRows] = await conn.query('SELECT FOUND_ROWS() as total');
-    const total = Array.isArray(foundRows) && foundRows.length > 0 ? (foundRows[0].total || 0) : 0;
+    // 3. หา count ทั้งหมดสำหรับ pagination
+    const countParams = params.slice(0, params.length); // ใช้ params เดียวกัน (ไม่มี LIMIT/OFFSET)
+    const countSql = `SELECT COUNT(*) as total FROM NegativeKeywords ${whereSql}`;
+    const [countResult] = await req.pool.query(countSql, countParams);
+    const total = countResult[0]?.total || 0;
 
     // 4. คำนวณ Stats (นับรวมทั้งหมด ไม่สนใจ Filter)
-    const [statsRows] = await conn.query(`
+    const [statsRows] = await req.pool.query(`
       SELECT 
         COUNT(*) as total,
         SUM(CASE WHEN IsActive = 1 THEN 1 ELSE 0 END) as active,
@@ -94,10 +97,8 @@ router.get('/', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error fetching keywords:', error && (error.stack || error));
+    console.error('❌ Error fetching keywords:', error && (error.stack || error));
     res.status(500).json({ ok: false, message: 'เกิดข้อผิดพลาด: ' + (error && error.message ? error.message : String(error)) });
-  } finally {
-    if (conn) conn.release();
   }
 });
 
