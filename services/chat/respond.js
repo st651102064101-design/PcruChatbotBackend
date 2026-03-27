@@ -438,27 +438,9 @@ module.exports = (pool) => async (req, res) => {
   const questionId = req.body?.id;
   let rankingById = new Map();
 
-  // 1. Handle Direct ID Request
-  if (questionId) {
-    let connection;
-    try {
-      connection = await pool.getConnection();
-      const [rows] = await connection.query(`SELECT qa.QuestionsAnswersID, qa.QuestionTitle, qa.QuestionText, qa.ReviewDate, qa.OfficerID, c.CategoriesName AS CategoriesID, c.CategoriesPDF FROM QuestionsAnswers qa LEFT JOIN Categories c ON qa.CategoriesID = c.CategoriesID WHERE qa.QuestionsAnswersID = ?`, [questionId]);
-      if (!rows || rows.length === 0) return res.status(404).json({ success: false, message: 'ไม่พบข้อมูล' });
-      const item = rows[0];
-      return res.status(200).json({ success: true, found: true, answer: item.QuestionText, title: item.QuestionTitle, questionId: item.QuestionsAnswersID, categories: item.CategoriesID || null, categoriesPDF: item.CategoriesPDF || null });
-    } catch (err) { return res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาด' }); } finally { if (connection) connection.release(); }
-  }
-
-  if (!message || typeof message !== 'string') return res.status(400).json({ success: false, message: 'Invalid payload' });
-
-  let connection;
   try {
-    connection = await pool.getConnection();
-    if (!connection) throw new Error('Failed to get connection from pool (returned null)');
-
-    // 2. Fetch QA List FIRST
-    const qaList = await fetchQAWithKeywords(connection);
+    // 2. Fetch QA List FIRST (using pool directly, not connection)
+    const qaList = await fetchQAWithKeywords(pool);
     if (!qaList || qaList.length === 0) return res.status(200).json({ success: true, found: false, message: 'ฐานข้อมูลยังไม่พร้อม', results: [] });
 
     // 3. Normalize Query
@@ -624,7 +606,7 @@ module.exports = (pool) => async (req, res) => {
     if (negativeWordsList.length === 0) {
         try {
             // SELECT * เพื่อกันพลาดเรื่องชื่อ Column
-            const [negRows] = await connection.query("SELECT * FROM NegativeKeywords WHERE IsActive = 1"); 
+            const [negRows] = await pool.query("SELECT * FROM NegativeKeywords WHERE IsActive = 1"); 
             if (negRows.length > 0) {
                 // หา Column ที่น่าจะเป็นคำศัพท์ (Word, InputWord, KeywordText, etc.)
                 const firstRow = negRows[0];
@@ -959,7 +941,7 @@ module.exports = (pool) => async (req, res) => {
         // ถ้า AI error หรือโหมด Keyword ให้ส่งข้อมูลติดต่อแทน
         const { getDefaultContacts } = require('../../utils/getDefaultContact_fixed');
         try {
-            const contacts = await getDefaultContacts(connection);
+            const contacts = await getDefaultContacts(pool);
             console.log(`📧 Sending ${contacts.length} default contacts as fallback`);
             return res.status(200).json({ 
                 success: true, 
@@ -1042,7 +1024,7 @@ module.exports = (pool) => async (req, res) => {
         try {
           const qaIds = topRanked.map(r => r.item.QuestionsAnswersID).filter(id => !!id);
           if (qaIds.length > 0) {
-            const [rows] = await connection.query(`
+            const [rows] = await pool.query(`
               SELECT DISTINCT org.OrgName AS organization, c.CategoriesName AS category, cc.Contact AS contact 
               FROM QuestionsAnswers qa 
               LEFT JOIN Officers o ON qa.OfficerID = o.OfficerID 
@@ -1088,7 +1070,5 @@ module.exports = (pool) => async (req, res) => {
   } catch (err) {
     console.error('API Error:', err);
     res.status(500).json({ success: false, message: 'เกิดข้อผิดพลาด', detail: err.message });
-  } finally {
-    if (connection) connection.release();
   }
 };
