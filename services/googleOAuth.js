@@ -220,8 +220,8 @@ async function linkGoogleToAdmin(pool, googleUser, adminUserId) {
   
   // สร้างการผูกบัญชีใหม่
   await pool.query(
-    `INSERT INTO GoogleOAuth (GoogleOAuthID, GoogleID, GoogleEmail, GoogleName, GooglePicture, UserType, AdminUserID, IsActive)
-     VALUES (NULL, ?, ?, ?, ?, 'admin', ?, 1)`,
+    `INSERT INTO GoogleOAuth (GoogleID, GoogleEmail, GoogleName, GooglePicture, UserType, AdminUserID, IsActive)
+     VALUES (?, ?, ?, ?, 'admin', ?, 1)`,
     [googleUser.googleId, googleUser.email, googleUser.name, googleUser.picture, adminUserId]
   );
   
@@ -256,8 +256,8 @@ async function linkGoogleToOfficer(pool, googleUser, officerId) {
   
   // สร้างการผูกบัญชีใหม่
   await pool.query(
-    `INSERT INTO GoogleOAuth (GoogleOAuthID, GoogleID, GoogleEmail, GoogleName, GooglePicture, UserType, OfficerID, IsActive)
-     VALUES (NULL, ?, ?, ?, ?, 'officer', ?, 1)`,
+    `INSERT INTO GoogleOAuth (GoogleID, GoogleEmail, GoogleName, GooglePicture, UserType, OfficerID, IsActive)
+     VALUES (?, ?, ?, ?, 'officer', ?, 1)`,
     [googleUser.googleId, googleUser.email, googleUser.name, googleUser.picture, officerId]
   );
   
