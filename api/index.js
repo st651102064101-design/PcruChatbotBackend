@@ -16,6 +16,20 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// ⚠️ Handle WebSocket upgrade requests on Vercel (serverless doesn't support WebSocket)
+// Return a proper error response instead of hanging
+app.all('/ws/*', (req, res) => {
+  const endpoint = req.path;
+  console.warn(`⚠️  WebSocket upgrade attempt to ${endpoint} on Vercel serverless (not supported)`);
+  res.status(501).json({
+    success: false,
+    message: 'WebSocket not supported on Vercel serverless. Please use polling endpoints instead.',
+    error: 'WEBSOCKET_NOT_SUPPORTED',
+    endpoint: endpoint,
+    alternative: 'Use polling API endpoints for real-time updates'
+  });
+});
+
 // Database connection pool
 const pool = mysql.createPool({
   host: process.env.DB_HOST,
