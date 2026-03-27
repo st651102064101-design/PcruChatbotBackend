@@ -117,12 +117,27 @@ router.get('/seed/preview', async (req, res) => {
       existingWords.has(word.trim().toLowerCase())
     );
 
+    // Diagnostic info
+    console.log(`📊 Seed Preview Stats:`);
+    console.log(`  - Standard stopwords total: ${STANDARD_THAI_STOPWORDS.length}`);
+    console.log(`  - Already in DB: ${alreadyExists.length}`);
+    console.log(`  - Ready to add: ${wordsToAdd.length}`);
+    console.log(`  - Total in DB: ${existingRows.length}`);
+
     res.json({
       ok: true,
       data: {
         toAdd: wordsToAdd,
         alreadyExists: alreadyExists,
-        totalStandard: STANDARD_THAI_STOPWORDS.length
+        totalStandard: STANDARD_THAI_STOPWORDS.length,
+        totalInDatabase: existingRows.length,
+        // Diagnostic info
+        diagnostics: {
+          pythainlpStopwordsCount: STANDARD_THAI_STOPWORDS.length,
+          databaseStopwordsCount: existingRows.length,
+          newWordsToAdd: wordsToAdd.length,
+          pythainlpLoaded: STANDARD_THAI_STOPWORDS.length > 0
+        }
       }
     });
 
