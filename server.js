@@ -482,7 +482,10 @@ app.get('/', async (req, res) => {
 
 // --- Google OAuth Routes (Public) ---
 const googleAuthRoutes = require('./routes/googleAuth');
-app.use('/auth', googleAuthRoutes);
+app.use('/auth', (req, res, next) => {
+  req.pool = pool;
+  next();
+}, googleAuthRoutes);
 
 // --- Public Routes (No Authentication Required) ---
 // Database connectivity diagnostic (remove after debugging)
