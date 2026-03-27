@@ -288,6 +288,25 @@ function notifyChatLogsUpdate(data) {
 }
 app.locals.notifyChatLogsUpdate = notifyChatLogsUpdate;
 
+// Generic notifier for categories updates
+function notifyCategoriesUpdate(data) {
+  const message = JSON.stringify({
+    type: 'CATEGORIES_UPDATE',
+    timestamp: new Date().toISOString(),
+    data: data || {}
+  });
+  console.log(`📢 Broadcasting categories update to ${wss.clients.size} clients:`, data);
+  let sentCount = 0;
+  wss.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN && (client.channel === 'categories' || client.channel === '/')) {
+      client.send(message);
+      sentCount++;
+    }
+  });
+  console.log(`✅ Sent WebSocket message to ${sentCount} active clients (categories)`);
+}
+app.locals.notifyCategoriesUpdate = notifyCategoriesUpdate;
+
 // Semantic suggestions routes removed
 
 // 2. สร้าง Nodemailer Transporter
