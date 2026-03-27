@@ -9,31 +9,54 @@ const getCategoriesService = (pool) => async (req, res) => {
         if (!officerId) {
             return res.status(401).json({ success: false, message: 'Unauthorized: Could not identify the user from the token.' });
         }
-        // ส่งชื่อหมวดหมู่แทนรหัส (CategoriesID จะเป็นชื่อ)
-        // If the user is an Officer, return both their categories and global ones (OfficerID IS NULL).
-        // If the user is an Admin (or other non-officer), return global categories (OfficerID IS NULL).
+        
         const usertype = req.user?.usertype;
         let rows;
         const order = req.query && String(req.query.order || '').toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+        
         if (usertype === 'Officer') {
+            // Officer: show only their own categories and global categories
             [rows] = await pool.query(
                 `SELECT c.CategoriesID, c.CategoriesName, c.OfficerID, c.ParentCategoriesID, c.CategoriesPDF,
                         (SELECT GROUP_CONCAT(Contact SEPARATOR ' ||| ') FROM Categories_Contact cc2 WHERE cc2.CategoriesID = c.CategoriesID) AS Contact
                  FROM Categories c
-                 WHERE c.OfficerID = ?
+                 WHERE c.OfficerID = ? OR c.OfficerID IS NULL
                  ORDER BY c.CategoriesID ${order}`,
                 [officerId]
             );
         } else {
-            [rows] = await pool.query(
-                `SELECT c.CategoriesID, c.CategoriesName, c.OfficerID, c.ParentCategoriesID, c.CategoriesPDF,
-                        (SELECT GROUP_CONCAT(Contact SEPARATOR ' ||| ') FROM Categories_Contact cc2 WHERE cc2.CategoriesID = c.CategoriesID) AS Contact
-                 FROM Categories c
-                 WHERE c.OfficerID IS NULL
-                 ORDER BY c.CategoriesID ${order}`
+            // Admin/Super Admin: show all categories in their organization
+            // First, get the officer's OrgID from the Officers table
+            const [adminOfficer] = await pool.query(
+                `SELECT OrgID FROM Officers WHERE AdminUserID = ? LIMIT 1`,
+                [officerId]
             );
+            
+            if (adminOfficer && adminOfficer.length > 0) {
+                const orgId = adminOfficer[0].OrgID;
+                
+                // Get all categories for officers in this organization + global categories
+                [rows] = await pool.query(
+                    `SELECT DISTINCT c.CategoriesID, c.CategoriesName, c.OfficerID, c.ParentCategoriesID, c.CategoriesPDF,
+                            (SELECT GROUP_CONCAT(Contact SEPARATOR ' ||| ') FROM Categories_Contact cc2 WHERE cc2.CategoriesID = c.CategoriesID) AS Contact
+                     FROM Categories c
+                     LEFT JOIN Officers o ON c.OfficerID = o.OfficerID
+                     WHERE c.OfficerID IS NULL OR o.OrgID = ?
+                     ORDER BY c.CategoriesID ${order}`,
+                    [orgId]
+                );
+            } else {
+                // Fallback: show all categories (for Super Admin without organization)
+                [rows] = await pool.query(
+                    `SELECT c.CategoriesID, c.CategoriesName, c.OfficerID, c.ParentCategoriesID, c.CategoriesPDF,
+                            (SELECT GROUP_CONCAT(Contact SEPARATOR ' ||| ') FROM Categories_Contact cc2 WHERE cc2.CategoriesID = c.CategoriesID) AS Contact
+                     FROM Categories c
+                     ORDER BY c.CategoriesID ${order}`
+                );
+            }
         }
-        console.log('[getCategories] fetched', Array.isArray(rows) ? rows.length : 0, 'rows; sample:', (Array.isArray(rows) ? rows.slice(0,5).map(r => ({ CategoriesID: r.CategoriesID, Contact: r.Contact })) : rows));
+
+        console.log('[getCategories] fetched', Array.isArray(rows) ? rows.length : 0, 'rows for usertype=' + usertype);
 
         // Ensure Contact is populated by fetching grouped contacts and merging (fallback if subquery failed for any reason)
         try {
@@ -49,9 +72,6 @@ const getCategoriesService = (pool) => async (req, res) => {
                     return Object.assign({}, r, { Contact: contactVal });
                 });
             }
-            // log Category 4 details for verification
-            const c4 = Array.isArray(rows) ? rows.find(x => String(x.CategoriesID) === '4') : null;
-            if (c4) console.log('[getCategories] Category 4 after merge Contact:', c4.Contact);
         } catch (e) {
             console.warn('[getCategories] failed to merge grouped Contacts:', e && (e.message || e));
         }
@@ -66,14 +86,6 @@ const getCategoriesService = (pool) => async (req, res) => {
                 CategoriesPDF: r.CategoriesPDF,
                 Contact: String(r.Contact || '')
             }));
-        }
-
-        // Debug: log final sample keys and first object
-        try {
-            console.log('[getCategories] final sample keys:', Array.isArray(rows) ? rows.slice(0,5).map(r => Object.keys(r)) : rows);
-            console.log('[getCategories] sample rows:', Array.isArray(rows) ? rows.slice(0,5) : rows);
-        } catch (e) {
-            console.warn('[getCategories] failed to log final sample:', e && (e.message || e));
         }
 
         res.status(200).json({ success: true, categories: rows, count: Array.isArray(rows) ? rows.length : 0 });
