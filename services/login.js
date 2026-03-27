@@ -15,15 +15,10 @@ const loginService = (pool, transporter) => async (req, res) => {
     
     console.log(`Login attempt: ID=${id}`); 
     
-    let connection;
     try {
-        // 🚀 Get explicit connection from pool
-        connection = await pool.getConnection();
-        if (!connection) throw new Error('Failed to get connection from pool');
-        
-        // Try direct query first (if SP fails)
+        // Direct query without getConnection() - Vercel compatible
         // Look for user in AdminUsers table
-        const [adminResults] = await connection.query(
+        const [adminResults] = await pool.query(
             'SELECT AdminUserID, AdminName, AdminEmail, AdminPassword, ParentAdminID FROM AdminUsers WHERE AdminUserID = ? AND AdminPassword = ? LIMIT 1',
             [id, password]
         );
@@ -55,7 +50,7 @@ const loginService = (pool, transporter) => async (req, res) => {
         }
 
         // Look for user in Officers table
-        const [officerResults] = await connection.query(
+        const [officerResults] = await pool.query(
             'SELECT OfficerID, OfficerName, Email AS OfficerEmail, OfficerPassword, OrgID FROM Officers WHERE OfficerID = ? AND OfficerPassword = ? LIMIT 1',
             [id, password]
         );
@@ -68,7 +63,7 @@ const loginService = (pool, transporter) => async (req, res) => {
             // Enrich with OrgName
             try {
                 if (user.OrgID) {
-                    const [orgRows] = await connection.query(
+                    const [orgRows] = await pool.query(
                         'SELECT OrgName FROM Organizations WHERE OrgID = ? LIMIT 1',
                         [user.OrgID]
                     );
@@ -112,15 +107,6 @@ const loginService = (pool, transporter) => async (req, res) => {
             success: false,
             message: 'Internal Server Error: Database access failed.'
         });
-    } finally {
-        // 🚀 CRITICAL: Always release connection
-        if (connection) {
-            try {
-                await connection.release();
-            } catch (e) {
-                console.error('Error releasing connection:', e.message);
-            }
-        }
     }
 };
 
