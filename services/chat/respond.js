@@ -228,9 +228,9 @@ async function loadSynonymsMapping(pool) {
       return SYNONYMS_MAPPING;
     }
 
-    const connection = await pool.getConnection();
-    const [rows] = await connection.query(`SELECT s.InputWord AS input, k.KeywordText AS target FROM KeywordSynonyms s JOIN Keywords k ON s.TargetKeywordID = k.KeywordID WHERE s.IsActive = 1`);
-    connection.release();
+    // 🚀 FIXED: Use direct pool.query instead of pool.getConnection for Vercel
+    const [rows] = await pool.query(`SELECT s.InputWord AS input, k.KeywordText AS target FROM KeywordSynonyms s JOIN Keywords k ON s.TargetKeywordID = k.KeywordID WHERE s.IsActive = 1`);
+    
     SYNONYMS_MAPPING = {};
     for (const r of rows || []) {
       if (r && r.input && r.target) SYNONYMS_MAPPING[String(r.input).toLowerCase().trim()] = String(r.target).toLowerCase().trim();

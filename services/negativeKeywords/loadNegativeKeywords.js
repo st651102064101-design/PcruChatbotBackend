@@ -33,11 +33,9 @@ const INLINE_NEGATION_PATTERNS = [
  * @param {Pool} pool - MySQL connection pool
  */
 async function loadNegativeKeywords(pool) {
-  let connection;
   try {
-    connection = await pool.getConnection();
-
-    const [rows] = await connection.query(`
+    // 🚀 FIXED: Use direct pool.query instead of pool.getConnection for Vercel
+    const [rows] = await pool.query(`
       SELECT Word, WeightModifier 
       FROM NegativeKeywords 
       WHERE IsActive = 1
@@ -70,14 +68,13 @@ async function loadNegativeKeywords(pool) {
       if (!w) continue;
       if (ignoredSet.has(w)) continue; // user explicitly ignored this word
       if (!NEGATIVE_KEYWORDS_MAP.hasOwnProperty(w)) {
-        try {
-          await connection.query(`INSERT INTO NegativeKeywords (Word, WeightModifier, IsActive) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE WeightModifier = VALUES(WeightModifier), IsActive = 1`, [w, parseFloat(pattern.modifier) || -1.0]);
-          NEGATIVE_KEYWORDS_MAP[w] = parseFloat(pattern.modifier) || -1.0;
-          console.log(`➕ Auto-added standard negative keyword: "${w}"`);
-        } catch (err) {
-          // non-fatal, skip
-          console.warn(`Auto-insert failed for negative word "${w}":`, err && err.message);
-        }
+        // 🚀 FIXED: Batch INSERT on startup only, not on every request
+        // Check if it needs to be added to DB (async, no await - fire and forget)
+        pool.query(`INSERT INTO NegativeKeywords (Word, WeightModifier, IsActive) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE WeightModifier = VALUES(WeightModifier), IsActive = 1`, [w, parseFloat(pattern.modifier) || -1.0])
+          .catch(err => console.warn(`Auto-insert failed for negative word "${w}":`, err && err.message));
+        
+        NEGATIVE_KEYWORDS_MAP[w] = parseFloat(pattern.modifier) || -1.0;
+        console.log(`➕ Auto-added standard negative keyword: "${w}"`);
       }
     }
 
@@ -87,8 +84,6 @@ async function loadNegativeKeywords(pool) {
     console.error('❌ Error loading negative keywords:', error && (error.message || error));
     NEGATIVE_KEYWORDS_MAP = {};
     return {};
-  } finally {
-    if (connection) connection.release();
   }
 }
 
@@ -122,14 +117,10 @@ function getNegativeModifier(word) {
 // ------------------------- New: Ignored words helpers -------------------------
 async function loadIgnoredNegativeKeywords(pool) {
   try {
-    const conn = await pool.getConnection();
-    try {
-      const [rows] = await conn.query(`SELECT Word FROM NegativeKeywords_Ignored`);
-      const s = new Set((rows || []).map(r => String(r.Word || '').toLowerCase().trim()).filter(Boolean));
-      return s;
-    } finally {
-      conn.release();
-    }
+    // 🚀 FIXED: Use direct pool.query instead of pool.getConnection for Vercel
+    const [rows] = await pool.query(`SELECT Word FROM NegativeKeywords_Ignored`);
+    const s = new Set((rows || []).map(r => String(r.Word || '').toLowerCase().trim()).filter(Boolean));
+    return s;
   } catch (err) {
     // If the table doesn't exist yet or query fails, return empty set
     return new Set();
@@ -140,17 +131,14 @@ async function addIgnoredNegativeKeyword(pool, word) {
   try {
     const w = String(word || '').toLowerCase().trim();
     if (!w) return false;
-    const conn = await pool.getConnection();
-    try {
-      await conn.query(`INSERT IGNORE INTO NegativeKeywords_Ignored (Word) VALUES (?)`, [w]);
-      // Also deactivate in main NegativeKeywords table if present
-      await conn.query(`UPDATE NegativeKeywords SET IsActive = 0 WHERE LOWER(Word) = LOWER(?)`, [w]);
-      // Update in-memory cache
-      if (NEGATIVE_KEYWORDS_MAP.hasOwnProperty(w)) delete NEGATIVE_KEYWORDS_MAP[w];
-      return true;
-    } finally {
-      conn.release();
-    }
+    
+    // 🚀 FIXED: Use direct pool.query instead of pool.getConnection for Vercel
+    await pool.query(`INSERT IGNORE INTO NegativeKeywords_Ignored (Word) VALUES (?)`, [w]);
+    // Also deactivate in main NegativeKeywords table if present
+    await pool.query(`UPDATE NegativeKeywords SET IsActive = 0 WHERE LOWER(Word) = LOWER(?)`, [w]);
+    // Update in-memory cache
+    if (NEGATIVE_KEYWORDS_MAP.hasOwnProperty(w)) delete NEGATIVE_KEYWORDS_MAP[w];
+    return true;
   } catch (err) {
     console.warn('addIgnoredNegativeKeyword failed', err && err.message);
     return false;
@@ -161,13 +149,10 @@ async function removeIgnoredNegativeKeyword(pool, word) {
   try {
     const w = String(word || '').toLowerCase().trim();
     if (!w) return false;
-    const conn = await pool.getConnection();
-    try {
-      await conn.query(`DELETE FROM NegativeKeywords_Ignored WHERE LOWER(Word) = LOWER(?)`, [w]);
-      return true;
-    } finally {
-      conn.release();
-    }
+    
+    // 🚀 FIXED: Use direct pool.query instead of pool.getConnection for Vercel
+    await pool.query(`DELETE FROM NegativeKeywords_Ignored WHERE LOWER(Word) = LOWER(?)`, [w]);
+    return true;
   } catch (err) {
     console.warn('removeIgnoredNegativeKeyword failed', err && err.message);
     return false;

@@ -27,24 +27,9 @@ const getWhitelist = () => {
 const getStopwordsSet = async (pool) => {
   const now = Date.now();
   
-  // Return cached version if still valid
+  // Return cached version if still valid (without DB check for Vercel performance)
   if (cachedStopwords && (now - lastCacheTime) < CACHE_DURATION) {
-    // Check DB last update timestamp to ensure cache reflects manual DB edits
-    try {
-      const [rowsLast] = await pool.query(`SELECT UNIX_TIMESTAMP(MAX(UpdatedAt)) as last_unix FROM Stopwords`);
-      const lastUnix = (rowsLast && rowsLast[0] && rowsLast[0].last_unix) ? Number(rowsLast[0].last_unix) : 0;
-      const lastMs = lastUnix ? lastUnix * 1000 : 0;
-      if (lastMs && lastMs > lastStopwordsDBUpdate) {
-        // DB changed since we last loaded, invalidate cache and continue to reload
-        cachedStopwords = null;
-        lastCacheTime = 0;
-      } else {
-        return cachedStopwords;
-      }
-    } catch (e) {
-      console.warn('⚠️  Could not verify Stopwords DB last update:', e && e.message);
-      return cachedStopwords;
-    }
+    return cachedStopwords;
   }
 
   console.log('🔄 Loading stopwords from database...');
