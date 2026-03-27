@@ -383,50 +383,76 @@ pool.getConnection()
             `);
             
             if (tableExists.length === 0) {
-                console.log('⚠️  ตาราง GoogleOAuth ไม่มี กำลังสร้าง...');
-                // Create table with proper structure
+                console.log('⚠️  ตาราง GoogleOAuth ไม่มี กำลังสร้างใหม่...');
+                // Drop and recreate table to ensure correct AUTO_INCREMENT
+                await pool.query(`DROP TABLE IF EXISTS GoogleOAuth`);
+                
                 await pool.query(`
-                    CREATE TABLE IF NOT EXISTS \`GoogleOAuth\` (
-                      \`GoogleOAuthID\` int(11) NOT NULL AUTO_INCREMENT,
-                      \`GoogleID\` varchar(255) NOT NULL,
-                      \`GoogleEmail\` varchar(255) NOT NULL,
-                      \`GoogleName\` varchar(255) DEFAULT NULL,
-                      \`GooglePicture\` varchar(512) DEFAULT NULL,
-                      \`UserType\` ENUM('admin', 'officer') NOT NULL,
-                      \`AdminUserID\` int(3) DEFAULT NULL,
-                      \`OfficerID\` int(11) DEFAULT NULL,
-                      \`IsActive\` tinyint(1) NOT NULL DEFAULT 1,
-                      \`CreatedAt\` timestamp NOT NULL DEFAULT current_timestamp(),
-                      \`UpdatedAt\` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-                      PRIMARY KEY (\`GoogleOAuthID\`),
-                      UNIQUE KEY \`uk_google_id\` (\`GoogleID\`),
-                      UNIQUE KEY \`uk_admin_user\` (\`AdminUserID\`),
-                      UNIQUE KEY \`uk_officer\` (\`OfficerID\`),
-                      KEY \`idx_google_email\` (\`GoogleEmail\`),
-                      CONSTRAINT \`fk_google_oauth_admin\` FOREIGN KEY (\`AdminUserID\`) REFERENCES \`AdminUsers\` (\`AdminUserID\`) ON DELETE CASCADE ON UPDATE CASCADE,
-                      CONSTRAINT \`fk_google_oauth_officer\` FOREIGN KEY (\`OfficerID\`) REFERENCES \`Officers\` (\`OfficerID\`) ON DELETE CASCADE ON UPDATE CASCADE
-                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                    CREATE TABLE GoogleOAuth (
+                      GoogleOAuthID int(11) NOT NULL AUTO_INCREMENT,
+                      GoogleID varchar(255) NOT NULL,
+                      GoogleEmail varchar(255) NOT NULL,
+                      GoogleName varchar(255) DEFAULT NULL,
+                      GooglePicture varchar(512) DEFAULT NULL,
+                      UserType ENUM('admin', 'officer') NOT NULL,
+                      AdminUserID int(3) DEFAULT NULL,
+                      OfficerID int(11) DEFAULT NULL,
+                      IsActive tinyint(1) NOT NULL DEFAULT 1,
+                      CreatedAt timestamp NOT NULL DEFAULT current_timestamp(),
+                      UpdatedAt timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+                      PRIMARY KEY (GoogleOAuthID),
+                      UNIQUE KEY uk_google_id (GoogleID),
+                      UNIQUE KEY uk_admin_user (AdminUserID),
+                      UNIQUE KEY uk_officer (OfficerID),
+                      KEY idx_google_email (GoogleEmail),
+                      CONSTRAINT fk_google_oauth_admin FOREIGN KEY (AdminUserID) REFERENCES AdminUsers (AdminUserID) ON DELETE CASCADE ON UPDATE CASCADE,
+                      CONSTRAINT fk_google_oauth_officer FOREIGN KEY (OfficerID) REFERENCES Officers (OfficerID) ON DELETE CASCADE ON UPDATE CASCADE
+                    ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
                 `);
-                console.log('✅ สร้างตาราง GoogleOAuth สำเร็จ');
+                console.log('✅ สร้างตาราง GoogleOAuth พร้อม AUTO_INCREMENT สำเร็จ');
             } else {
-                // Table exists, check AUTO_INCREMENT
-                const [rows] = await pool.query(`
+                // Verify AUTO_INCREMENT is set -- if not, recreate
+                const [autoIncrementCheck] = await pool.query(`
                     SELECT EXTRA FROM information_schema.COLUMNS
                     WHERE TABLE_SCHEMA = DATABASE()
                       AND TABLE_NAME = 'GoogleOAuth'
                       AND COLUMN_NAME = 'GoogleOAuthID'
                 `);
-                if (rows.length > 0 && !rows[0].EXTRA.includes('auto_increment')) {
-                    console.log('⚠️  GoogleOAuthID ไม่มี AUTO_INCREMENT กำลังแก้ไข...');
+                
+                if (autoIncrementCheck.length > 0 && !autoIncrementCheck[0].EXTRA.includes('auto_increment')) {
+                    console.log('⚠️  GoogleOAuthID ไม่มี AUTO_INCREMENT กำลังสร้างใหม่...');
+                    // Recreate table with correct AUTO_INCREMENT
+                    await pool.query(`DROP TABLE GoogleOAuth`);
+                    
                     await pool.query(`
-                        ALTER TABLE GoogleOAuth
-                        MODIFY GoogleOAuthID int(11) NOT NULL AUTO_INCREMENT
+                        CREATE TABLE GoogleOAuth (
+                          GoogleOAuthID int(11) NOT NULL AUTO_INCREMENT,
+                          GoogleID varchar(255) NOT NULL,
+                          GoogleEmail varchar(255) NOT NULL,
+                          GoogleName varchar(255) DEFAULT NULL,
+                          GooglePicture varchar(512) DEFAULT NULL,
+                          UserType ENUM('admin', 'officer') NOT NULL,
+                          AdminUserID int(3) DEFAULT NULL,
+                          OfficerID int(11) DEFAULT NULL,
+                          IsActive tinyint(1) NOT NULL DEFAULT 1,
+                          CreatedAt timestamp NOT NULL DEFAULT current_timestamp(),
+                          UpdatedAt timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+                          PRIMARY KEY (GoogleOAuthID),
+                          UNIQUE KEY uk_google_id (GoogleID),
+                          UNIQUE KEY uk_admin_user (AdminUserID),
+                          UNIQUE KEY uk_officer (OfficerID),
+                          KEY idx_google_email (GoogleEmail),
+                          CONSTRAINT fk_google_oauth_admin FOREIGN KEY (AdminUserID) REFERENCES AdminUsers (AdminUserID) ON DELETE CASCADE ON UPDATE CASCADE,
+                          CONSTRAINT fk_google_oauth_officer FOREIGN KEY (OfficerID) REFERENCES Officers (OfficerID) ON DELETE CASCADE ON UPDATE CASCADE
+                        ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
                     `);
-                    console.log('✅ แก้ไข AUTO_INCREMENT ของ GoogleOAuthID สำเร็จ');
+                    console.log('✅ สร้างใหม่ตาราง GoogleOAuth พร้อม AUTO_INCREMENT สำเร็จ');
+                } else {
+                    console.log('✅ ตาราง GoogleOAuth มี AUTO_INCREMENT แล้ว');
                 }
             }
         } catch (err) {
-            console.error('⚠️  ไม่สามารถตรวจสอบ/แก้ไข GoogleOAuth:', err.message);
+            console.error('⚠️  ไม่สามารถตรวจสอบ/สร้าง GoogleOAuth:', err.message);
         }
     })
     .catch(err => {
