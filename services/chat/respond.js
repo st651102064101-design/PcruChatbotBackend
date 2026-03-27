@@ -42,10 +42,10 @@ const TOKENIZER_URL = process.env.TOKENIZER_URL || `http://${TOKENIZER_HOST}:${T
 // HELPER FUNCTIONS (Defined BEFORE usage)
 // --------------------------------------------------------------------------------
 
-async function fetchQAWithKeywords(connection) {
+async function fetchQAWithKeywords(pool) {
   // 🚀 OPTIMIZED: Single query with LEFT JOIN instead of N+1 Query Loop
   // This replaces 501 queries (1 + 500) with just 1 query!
-  const [rows] = await connection.query(`
+  const [rows] = await pool.query(`
     SELECT 
       qa.QuestionsAnswersID, 
       qa.QuestionTitle, 
