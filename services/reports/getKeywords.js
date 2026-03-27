@@ -15,7 +15,7 @@ const getKeywordsService = (pool) => async (req, res) => {
              FROM Keywords k
              LEFT JOIN AnswersKeywords ak ON ak.KeywordID = k.KeywordID
              WHERE k.OfficerID = ?
-             GROUP BY k.KeywordID
+             GROUP BY k.KeywordID, k.KeywordText, k.OfficerID
              ORDER BY k.KeywordText ${order}`,
             [officerId]
         );
