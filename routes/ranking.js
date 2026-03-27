@@ -44,8 +44,20 @@ router.post('/weights', authenticateToken, (req, res) => {
       application_support: Number(application_support ?? DEFAULT_WEIGHTS.application_support),
     };
 
-    const cfgPath = path.join(__dirname, '..', 'config', 'ranking.json');
-    fs.writeFileSync(cfgPath, JSON.stringify(updated, null, 2), 'utf8');
+    // Try to persist weights to file (works locally)
+    // On Vercel, gracefully skip file write and just update in-memory
+    try {
+      const isVercel = process.env.VERCEL === 'true' || process.env.RAILWAY === 'true';
+      const cfgPath = isVercel 
+        ? path.join('/tmp', 'ranking.json') 
+        : path.join(__dirname, '..', 'config', 'ranking.json');
+      
+      fs.writeFileSync(cfgPath, JSON.stringify(updated, null, 2), 'utf8');
+      console.log('✅ Ranking weights saved to:', cfgPath);
+    } catch (fileErr) {
+      console.warn('⚠️  Could not persist ranking weights to file:', fileErr && fileErr.message);
+      // Don't fail the request - in-memory update is sufficient
+    }
 
     // Update in-memory DEFAULT_WEIGHTS exported by calculateFinalRanking module so GET /ranking/weights reflects change without restart
     try {
