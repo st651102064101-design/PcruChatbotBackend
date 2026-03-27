@@ -107,15 +107,14 @@ router.get('/', async (req, res) => {
  * เพิ่มคำปฏิเสธ (ทีละคำ)
  */
 router.post('/', async (req, res) => {
-  let conn;
   try {
     const { word, weightModifier, description } = req.body;
     
     if (!word) return res.status(400).json({ ok: false, message: 'กรุณาระบุคำปฏิเสธ' });
 
-    conn = await req.pool.getConnection();
+    if (!req.pool) return res.status(500).json({ ok: false, message: 'Database connection not available' });
     
-    const [result] = await conn.query(
+    const [result] = await req.pool.query(
       `INSERT INTO NegativeKeywords (Word, WeightModifier, Description, IsActive) 
        VALUES (?, ?, ?, 1)
        ON DUPLICATE KEY UPDATE IsActive = 1, WeightModifier = VALUES(WeightModifier), Description = VALUES(Description)`,
@@ -129,10 +128,8 @@ router.post('/', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error adding keyword:', error);
+    console.error('❌ Error adding keyword:', error);
     res.status(500).json({ ok: false, message: 'บันทึกไม่สำเร็จ: ' + (error && error.message) });
-  } finally {
-    if (conn) conn.release();
   }
 });
 
@@ -141,7 +138,6 @@ router.post('/', async (req, res) => {
  * เพิ่มคำปฏิเสธ (หลายคำคั่นด้วย comma)
  */
 router.post('/bulk', async (req, res) => {
-  let conn;
   try {
     const { words, weightModifier } = req.body;
     if (!words) return res.status(400).json({ ok: false, message: 'กรุณาระบุคำ' });
@@ -149,11 +145,11 @@ router.post('/bulk', async (req, res) => {
     const wordList = words.split(',').map(w => w.trim()).filter(w => w);
     if (wordList.length === 0) return res.status(400).json({ ok: false, message: 'ไม่พบคำที่ถูกต้อง' });
 
-    conn = await req.pool.getConnection();
+    if (!req.pool) return res.status(500).json({ ok: false, message: 'Database connection not available' });
     
     let successCount = 0;
     for (const w of wordList) {
-      await conn.query(
+      await req.pool.query(
         `INSERT INTO NegativeKeywords (Word, WeightModifier, IsActive) 
          VALUES (?, ?, 1)
          ON DUPLICATE KEY UPDATE IsActive = 1`,
@@ -165,10 +161,8 @@ router.post('/bulk', async (req, res) => {
     res.json({ ok: true, message: `เพิ่มสำเร็จ ${successCount} คำ` });
 
   } catch (error) {
-    console.error('Error bulk adding:', error);
+    console.error('❌ Error bulk adding:', error);
     res.status(500).json({ ok: false, message: error && error.message });
-  } finally {
-    if (conn) conn.release();
   }
 });
 
@@ -177,13 +171,13 @@ router.post('/bulk', async (req, res) => {
  * แก้ไขข้อมูล
  */
 router.put('/:id', async (req, res) => {
-  let conn;
   try {
     const id = req.params.id;
     const { word, weightModifier, description } = req.body;
 
-    conn = await req.pool.getConnection();
-    await conn.query(
+    if (!req.pool) return res.status(500).json({ ok: false, message: 'Database connection not available' });
+
+    await req.pool.query(
       'UPDATE NegativeKeywords SET Word = ?, WeightModifier = ?, Description = ? WHERE NegativeKeywordID = ?',
       [word.trim(), weightModifier, description, id]
     );
@@ -191,10 +185,8 @@ router.put('/:id', async (req, res) => {
     res.json({ ok: true, message: 'บันทึกการแก้ไขแล้ว' });
 
   } catch (error) {
-    console.error('Error updating:', error);
+    console.error('❌ Error updating:', error);
     res.status(500).json({ ok: false, message: error && error.message });
-  } finally {
-    if (conn) conn.release();
   }
 });
 
@@ -203,16 +195,16 @@ router.put('/:id', async (req, res) => {
  * เปลี่ยนสถานะ Active/Inactive
  */
 router.post('/toggle/:id', async (req, res) => {
-  let conn;
   try {
     const id = req.params.id;
-    conn = await req.pool.getConnection();
     
-    const [rows] = await conn.query('SELECT IsActive FROM NegativeKeywords WHERE NegativeKeywordID = ?', [id]);
+    if (!req.pool) return res.status(500).json({ ok: false, message: 'Database connection not available' });
+    
+    const [rows] = await req.pool.query('SELECT IsActive FROM NegativeKeywords WHERE NegativeKeywordID = ?', [id]);
     if (rows.length === 0) return res.status(404).json({ ok: false, message: 'ไม่พบข้อมูล' });
 
     const newStatus = rows[0].IsActive ? 0 : 1;
-    await conn.query('UPDATE NegativeKeywords SET IsActive = ? WHERE NegativeKeywordID = ?', [newStatus, id]);
+    await req.pool.query('UPDATE NegativeKeywords SET IsActive = ? WHERE NegativeKeywordID = ?', [newStatus, id]);
 
     res.json({ 
       ok: true, 
@@ -221,10 +213,8 @@ router.post('/toggle/:id', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error toggling:', error);
+    console.error('❌ Error toggling:', error);
     res.status(500).json({ ok: false, message: error && error.message });
-  } finally {
-    if (conn) conn.release();
   }
 });
 
@@ -295,16 +285,15 @@ const STANDARD_NEGATIVE_KEYWORDS = [
  * ดูตัวอย่างคำที่จะถูกเพิ่มเมื่อกด seed (แสดงเฉพาะคำที่ยังไม่มีในระบบ)
  */
 router.get('/seed/preview', async (req, res) => {
-  let conn;
   try {
-    conn = await req.pool.getConnection();
+    if (!req.pool) return res.status(500).json({ ok: false, message: 'Database connection not available' });
 
     // Get existing words
-    const [existingRows] = await conn.query('SELECT Word FROM NegativeKeywords');
+    const [existingRows] = await req.pool.query('SELECT Word FROM NegativeKeywords');
     const existingWords = new Set(existingRows.map(r => r.Word.toLowerCase()));
 
     // Get ignored words (all deleted words, not just standard ones)
-    const [ignoredRows] = await conn.query('SELECT Word FROM NegativeKeywords_Ignored');
+    const [ignoredRows] = await req.pool.query('SELECT Word FROM NegativeKeywords_Ignored');
     const ignoredWordsSet = new Set(ignoredRows.map(r => r.Word.toLowerCase()));
     
     // All ignored words as array for display (not just standard ones)
@@ -336,10 +325,8 @@ router.get('/seed/preview', async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Error getting seed preview:', error);
+    console.error('❌ Error getting seed preview:', error);
     res.status(500).json({ ok: false, message: error && error.message });
-  } finally {
-    if (conn) conn.release();
   }
 });
 
@@ -347,23 +334,24 @@ router.get('/seed/preview', async (req, res) => {
  * POST /seed
  * เติมคำมาตรฐานเข้า DB หากยังไม่มี และไม่อยู่ในตาราง Ignored
  */
+/**
+ * POST /seed
+ * เติมคำมาตรฐานเข้า DB หากยังไม่มี และไม่อยู่ในตาราง Ignored
+ */
 router.post('/seed', async (req, res) => {
-  let conn;
   try {
-    conn = await req.pool.getConnection();
+    if (!req.pool) return res.status(500).json({ ok: false, message: 'Database connection not available' });
 
     // Get existing + ignored words for fast checks (case-insensitive)
-    const [existingRows] = await conn.query('SELECT Word, IsActive FROM NegativeKeywords');
+    const [existingRows] = await req.pool.query('SELECT Word, IsActive FROM NegativeKeywords');
     const existingMap = new Map(
       (Array.isArray(existingRows) ? existingRows : []).map(r => [String(r.Word || '').toLowerCase(), Number(r.IsActive) || 0])
     );
 
-    const [ignoredRows] = await conn.query('SELECT Word FROM NegativeKeywords_Ignored');
+    const [ignoredRows] = await req.pool.query('SELECT Word FROM NegativeKeywords_Ignored');
     const ignoredSet = new Set(
       (Array.isArray(ignoredRows) ? ignoredRows : []).map(r => String(r.Word || '').toLowerCase())
     );
-
-    await conn.beginTransaction();
 
     let addedCount = 0;
     for (const item of STANDARD_NEGATIVE_KEYWORDS) {
@@ -375,7 +363,7 @@ router.post('/seed', async (req, res) => {
       if (existingMap.has(key)) {
         // If exists but inactive, reactivate it (do not override modifier)
         if ((existingMap.get(key) || 0) === 0) {
-          await conn.query(
+          await req.pool.query(
             'UPDATE NegativeKeywords SET IsActive = 1 WHERE LOWER(Word) = LOWER(?)',
             [word]
           );
@@ -384,15 +372,13 @@ router.post('/seed', async (req, res) => {
         continue;
       }
 
-      await conn.query(
+      await req.pool.query(
         'INSERT INTO NegativeKeywords (Word, WeightModifier, IsActive) VALUES (?, ?, 1)',
         [word, Number(item.modifier)]
       );
       existingMap.set(key, 1);
       addedCount++;
     }
-
-    await conn.commit();
 
     // Reload in-memory cache
     try {
@@ -408,13 +394,8 @@ router.post('/seed', async (req, res) => {
     });
 
   } catch (error) {
-    if (conn) {
-      try { await conn.rollback(); } catch (e) {}
-    }
-    console.error('Error seeding:', error && (error.stack || error));
+    console.error('❌ Error seeding:', error && (error.stack || error));
     res.status(500).json({ ok: false, message: error && error.message ? error.message : String(error) });
-  } finally {
-    if (conn) conn.release();
   }
 });
 
