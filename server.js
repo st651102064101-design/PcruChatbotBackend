@@ -376,22 +376,57 @@ pool.getConnection()
 
         // ตรวจสอบและแก้ไข AUTO_INCREMENT ของตาราง GoogleOAuth
         try {
-            const [rows] = await pool.query(`
-                SELECT EXTRA FROM information_schema.COLUMNS
-                WHERE TABLE_SCHEMA = DATABASE()
-                  AND TABLE_NAME = 'GoogleOAuth'
-                  AND COLUMN_NAME = 'GoogleOAuthID'
+            // First, check if table exists
+            const [tableExists] = await pool.query(`
+                SELECT 1 FROM information_schema.TABLES 
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'GoogleOAuth' LIMIT 1
             `);
-            if (rows.length > 0 && !rows[0].EXTRA.includes('auto_increment')) {
-                console.log('⚠️  GoogleOAuthID ไม่มี AUTO_INCREMENT กำลังแก้ไข...');
+            
+            if (tableExists.length === 0) {
+                console.log('⚠️  ตาราง GoogleOAuth ไม่มี กำลังสร้าง...');
+                // Create table with proper structure
                 await pool.query(`
-                    ALTER TABLE GoogleOAuth
-                    MODIFY GoogleOAuthID int(11) NOT NULL AUTO_INCREMENT UNIQUE
+                    CREATE TABLE IF NOT EXISTS \`GoogleOAuth\` (
+                      \`GoogleOAuthID\` int(11) NOT NULL AUTO_INCREMENT,
+                      \`GoogleID\` varchar(255) NOT NULL,
+                      \`GoogleEmail\` varchar(255) NOT NULL,
+                      \`GoogleName\` varchar(255) DEFAULT NULL,
+                      \`GooglePicture\` varchar(512) DEFAULT NULL,
+                      \`UserType\` ENUM('admin', 'officer') NOT NULL,
+                      \`AdminUserID\` int(3) DEFAULT NULL,
+                      \`OfficerID\` int(11) DEFAULT NULL,
+                      \`IsActive\` tinyint(1) NOT NULL DEFAULT 1,
+                      \`CreatedAt\` timestamp NOT NULL DEFAULT current_timestamp(),
+                      \`UpdatedAt\` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+                      PRIMARY KEY (\`GoogleOAuthID\`),
+                      UNIQUE KEY \`uk_google_id\` (\`GoogleID\`),
+                      UNIQUE KEY \`uk_admin_user\` (\`AdminUserID\`),
+                      UNIQUE KEY \`uk_officer\` (\`OfficerID\`),
+                      KEY \`idx_google_email\` (\`GoogleEmail\`),
+                      CONSTRAINT \`fk_google_oauth_admin\` FOREIGN KEY (\`AdminUserID\`) REFERENCES \`AdminUsers\` (\`AdminUserID\`) ON DELETE CASCADE ON UPDATE CASCADE,
+                      CONSTRAINT \`fk_google_oauth_officer\` FOREIGN KEY (\`OfficerID\`) REFERENCES \`Officers\` (\`OfficerID\`) ON DELETE CASCADE ON UPDATE CASCADE
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
                 `);
-                console.log('✅ แก้ไข AUTO_INCREMENT ของ GoogleOAuthID สำเร็จ');
+                console.log('✅ สร้างตาราง GoogleOAuth สำเร็จ');
+            } else {
+                // Table exists, check AUTO_INCREMENT
+                const [rows] = await pool.query(`
+                    SELECT EXTRA FROM information_schema.COLUMNS
+                    WHERE TABLE_SCHEMA = DATABASE()
+                      AND TABLE_NAME = 'GoogleOAuth'
+                      AND COLUMN_NAME = 'GoogleOAuthID'
+                `);
+                if (rows.length > 0 && !rows[0].EXTRA.includes('auto_increment')) {
+                    console.log('⚠️  GoogleOAuthID ไม่มี AUTO_INCREMENT กำลังแก้ไข...');
+                    await pool.query(`
+                        ALTER TABLE GoogleOAuth
+                        MODIFY GoogleOAuthID int(11) NOT NULL AUTO_INCREMENT
+                    `);
+                    console.log('✅ แก้ไข AUTO_INCREMENT ของ GoogleOAuthID สำเร็จ');
+                }
             }
         } catch (err) {
-            console.error('❌ ไม่สามารถแก้ไข AUTO_INCREMENT ของ GoogleOAuth:', err.message);
+            console.error('⚠️  ไม่สามารถตรวจสอบ/แก้ไข GoogleOAuth:', err.message);
         }
     })
     .catch(err => {
