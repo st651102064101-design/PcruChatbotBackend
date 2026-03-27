@@ -373,6 +373,26 @@ pool.getConnection()
         } catch (err) {
             console.error('❌ ไม่สามารถแก้ไข AUTO_INCREMENT ของ ChatLogNoAnswers:', err.message);
         }
+
+        // ตรวจสอบและแก้ไข AUTO_INCREMENT ของตาราง GoogleOAuth
+        try {
+            const [rows] = await pool.query(`
+                SELECT EXTRA FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = 'GoogleOAuth'
+                  AND COLUMN_NAME = 'GoogleOAuthID'
+            `);
+            if (rows.length > 0 && !rows[0].EXTRA.includes('auto_increment')) {
+                console.log('⚠️  GoogleOAuthID ไม่มี AUTO_INCREMENT กำลังแก้ไข...');
+                await pool.query(`
+                    ALTER TABLE GoogleOAuth
+                    MODIFY GoogleOAuthID int(11) NOT NULL AUTO_INCREMENT UNIQUE
+                `);
+                console.log('✅ แก้ไข AUTO_INCREMENT ของ GoogleOAuthID สำเร็จ');
+            }
+        } catch (err) {
+            console.error('❌ ไม่สามารถแก้ไข AUTO_INCREMENT ของ GoogleOAuth:', err.message);
+        }
     })
     .catch(err => {
         console.error('❌ CRITICAL: Failed to connect to MySQL Database');
