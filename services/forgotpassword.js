@@ -43,7 +43,7 @@ const sendPasswordResetEmail = async (pool, transporter, email, userId) => {
 
     // เรียกใช้ Stored Procedure เพื่ออัปเดต reset token สำหรับ AdminUsers หรือ Officers
     try {
-        await pool.execute(
+        await pool.query(
             'CALL sp_set_password_reset_token(?, ?, ?)',
             [resetToken, expires, email]
         );
@@ -52,13 +52,13 @@ const sendPasswordResetEmail = async (pool, transporter, email, userId) => {
         // ให้ใช้ fallback โดยอัปเดตตาราง `AdminUsers` หรือ `Officers` โดยตรง
         if (spErr && (spErr.code === 'ER_SP_DOES_NOT_EXIST' || /sp_set_password_reset_token/.test(String(spErr.message || '')))) {
             try {
-                const [adminRes] = await pool.execute(
+                const [adminRes] = await pool.query(
                     'UPDATE AdminUsers SET reset_token = ?, reset_token_expires = ? WHERE AdminEmail = ?',
                     [resetToken, expires, email]
                 );
                 // ถ้าไม่มีแถวที่ถูกอัปเดต ให้ลองอัปเดตในตาราง Officers
                 if (!adminRes || adminRes.affectedRows === 0) {
-                    await pool.execute(
+                    await pool.query(
                         'UPDATE Officers SET reset_token = ?, reset_token_expires = ? WHERE Email = ?',
                         [resetToken, expires, email]
                     );
@@ -144,20 +144,20 @@ const forgotPasswordService = (pool, transporter) => { // <--- รับ transpo
         try {
             let results;
             try {
-                const execRes = await pool.execute('CALL sp_check_email_exists(?)', [email]);
+                const execRes = await pool.query('CALL sp_check_email_exists(?)', [email]);
                 results = execRes[0];
             } catch (spErr) {
                 // ถ้า SP ไม่มี ให้ fallback ไปค้นหาในตารางโดยตรง
                 if (spErr && (spErr.code === 'ER_SP_DOES_NOT_EXIST' || /sp_check_email_exists/.test(String(spErr.message || '')))) {
                     // ค้นหาใน AdminUsers
-                    const [adminRows] = await pool.execute(
+                    const [adminRows] = await pool.query(
                         'SELECT AdminUserID AS user_id, AdminEmail AS email_addr FROM AdminUsers WHERE AdminEmail = ? LIMIT 1',
                         [email]
                     );
                     if (adminRows && adminRows.length > 0) {
                         results = [[{ email_status: 'Found', user_id: adminRows[0].user_id }]];
                     } else {
-                        const [offRows] = await pool.execute(
+                        const [offRows] = await pool.query(
                             'SELECT OfficerID AS user_id, Email AS email_addr FROM Officers WHERE Email = ? LIMIT 1',
                             [email]
                         );
