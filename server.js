@@ -768,12 +768,18 @@ app.get('/negativekeywords/public', async (req, res) => {
 
 // Mount full-featured router for negative keywords management
 const negativeKeywordsRouter = require('./routes/negativeKeywords');
-app.use('/negativekeywords', authenticateToken, negativeKeywordsRouter);
+app.use('/negativekeywords', authenticateToken, (req, res, next) => {
+  req.pool = pool;
+  next();
+}, negativeKeywordsRouter);
 // Also keep the legacy CRUD factory-based routes mounted for backward compatibility under /negativekeywords/crud
 const negativeKeywordsCrudRoutes = require('./routes/negativeKeywordsCrud');
 app.use('/negativekeywords/crud', authenticateToken, negativeKeywordsCrudRoutes(pool));
 // Optional API-friendly path
-app.use('/api/negative-keywords', authenticateToken, negativeKeywordsRouter);
+app.use('/api/negative-keywords', authenticateToken, (req, res, next) => {
+  req.pool = pool;
+  next();
+}, negativeKeywordsRouter);
 
 // --- Admin Keyword Management ---
 const adminRoutes = require('./routes/admin');
