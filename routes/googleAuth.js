@@ -280,8 +280,8 @@ router.post('/google/link-with-credentials', async (req, res) => {
   }
 
   try {
-    // ตรวจสอบ ID/Password กับ AdminUsers ก่อน
-    const [admins] = await pool.execute(
+    // ตรวจสอบ ID/Password กับ AdminUsers ก่อน (use pool.query for Vercel compatibility)
+    const [admins] = await pool.query(
       'SELECT AdminUserID, AdminName, AdminEmail, AdminPassword, ParentAdminID FROM AdminUsers WHERE AdminUserID = ? AND AdminPassword = ?',
       [id, password]
     );
@@ -309,8 +309,8 @@ router.post('/google/link-with-credentials', async (req, res) => {
       });
     }
 
-    // ตรวจสอบกับ Officers
-    const [officers] = await pool.execute(
+    // ตรวจสอบกับ Officers (use pool.query for Vercel compatibility)
+    const [officers] = await pool.query(
       'SELECT OfficerID, OfficerName, Email AS OfficerEmail, OfficerPassword, OrgID FROM Officers WHERE OfficerID = ? AND OfficerPassword = ?',
       [id, password]
     );
