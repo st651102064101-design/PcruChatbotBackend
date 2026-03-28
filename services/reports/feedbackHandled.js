@@ -37,17 +37,13 @@ const markFeedbackHandledService = (pool) => async (req, res) => {
             if (row.HandledAt) {
                 return res.status(409).json({ success: false, message: 'Feedback already handled' });
             }
-            // Allow Unlike (0) and Pending (2) to be handled
-            if (row.FeedbackValue != null && Number(row.FeedbackValue) !== 0 && Number(row.FeedbackValue) !== 2) {
-                return res.status(409).json({ success: false, message: 'Feedback cannot be marked as handled (unsupported feedback type)' });
-            }
         }
 
-        // Mark as handled with current timestamp (allow Unlike=0 and Pending=2)
+        // Mark as handled with current timestamp (allow all feedback types)
         const [result] = await pool.query(
             `UPDATE Feedbacks 
              SET HandledAt = NOW() 
-             WHERE FeedbackID = ? AND FeedbackValue IN (0, 2)`,
+             WHERE FeedbackID = ?`,
             [feedbackId]
         );
 
